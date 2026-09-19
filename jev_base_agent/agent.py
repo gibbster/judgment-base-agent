@@ -38,6 +38,16 @@ class JudgmentDecision:
     request_input_id: str | None = None
     request_input_prompt: str | None = None
 
+    @property
+    def branch(self) -> str | int | bool | list[str] | None:
+        """Alias for route."""
+        return self.route
+
+    @property
+    def state_updates(self) -> dict[str, Any]:
+        """Alias for state_delta."""
+        return self.state_delta
+
 
 def normalize_decision(
     raw_decision: Any,

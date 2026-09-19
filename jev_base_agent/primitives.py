@@ -108,6 +108,7 @@ class ScoreJudgment(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     score: float
+    level: str = ""
     legend: dict[str, str] = Field(default_factory=dict)
     probabilities: dict[str, float] = Field(default_factory=dict)
     confidence: float = 1.0
@@ -121,10 +122,12 @@ class ScoreJudgment(BaseModel):
         probabilities: Mapping[str, float] | None = None,
         confidence: float = 1.0,
         confidence_floor: float = 0.50,
+        level: str = "",
     ) -> ScoreJudgment:
         conf = float(confidence)
         return cls(
             score=float(score),
+            level=str(level),
             legend={str(k): str(v) for k, v in (legend or {}).items()},
             probabilities={str(k): float(v) for k, v in (probabilities or {}).items()},
             confidence=conf,
@@ -138,6 +141,21 @@ class NoulJudgment(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     noul: float
+
+    @property
+    def probability(self) -> float:
+        """Alias for noul probability in [0.0, 1.0]."""
+        return self.noul
+
+    @property
+    def confidence_tier(self) -> ConfidenceTier:
+        """Return high/borderline/low confidence tier based on distance from 0.50."""
+        margin = abs(self.noul - 0.5) * 2.0
+        return classify_confidence_tier(0.5 + margin / 2.0, floor=0.60)
+
+    def passed(self, threshold: float = 0.50) -> bool:
+        """Return True if noul probability meets or exceeds threshold."""
+        return self.noul >= threshold
 
 
 class JudgmentUsage(BaseModel):

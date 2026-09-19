@@ -34,6 +34,7 @@ class JudgmentSwitch(JudgmentAgent):
         self,
         *,
         name: str,
+        description: str = "",
         instructions: str | None = None,
         routes: Mapping[str, str | None] | Sequence[str] | None = None,
         schema: type[JudgmentSchema] | None = None,
@@ -91,6 +92,7 @@ class JudgmentSwitch(JudgmentAgent):
 
         super().__init__(
             name=name,
+            description=description,
             model=model,
             schema=schema,
             questions=resolved_questions,
@@ -112,6 +114,7 @@ class JudgmentGuard(JudgmentAgent):
         self,
         *,
         name: str,
+        description: str = "",
         instructions: str | None = None,
         criteria: Mapping[str, str] | None = None,
         threshold: float = 0.70,
@@ -161,6 +164,7 @@ class JudgmentGuard(JudgmentAgent):
 
         super().__init__(
             name=name,
+            description=description,
             model=model,
             schema=schema,
             questions=resolved_questions,
@@ -175,7 +179,7 @@ class JudgmentGuard(JudgmentAgent):
 
 @dataclass(frozen=True)
 class JudgmentBatchEntry(Generic[TItem, TJudgment]):
-    """Immutable pairing of a single collection item with its evaluated judgment."""
+    """Single evaluated entry in a JudgmentBatch."""
 
     index: int
     item: TItem
@@ -185,82 +189,115 @@ class JudgmentBatchEntry(Generic[TItem, TJudgment]):
 
 @dataclass(frozen=True)
 class JudgmentBatch(Generic[TItem, TJudgment]):
-    """Composable Map / Filter / Rank / Reduce result container for JudgmentMap."""
+    """Immutable collection result returned by JudgmentMap with filter/rank/map/reduce helpers."""
 
     entries: tuple[JudgmentBatchEntry[TItem, TJudgment], ...]
-    global_result: JudgmentResult
+    global_result: JudgmentResult | None = None
 
-    def items(self) -> list[TItem]:
-        """Return the list of items currently in the batch."""
-        return [e.item for e in self.entries]
+    def __len__(self) -> int:
+        return len(self.entries)
 
-    def judgments(self) -> list[TJudgment]:
-        """Return the list of judgments corresponding to each item in the batch."""
-        return [e.judgment for e in self.entries]
+    def __iter__(self) -> Iterator[JudgmentBatchEntry[TItem, TJudgment]]:
+        return iter(self.entries)
+
+    def items(self) -> tuple[TItem, ...]:
+        """Return the ordered tuple of raw items in this batch."""
+        return tuple(entry.item for entry in self.entries)
+
+    def judgments(self) -> tuple[TJudgment, ...]:
+        """Return the ordered tuple of per-item judgments in this batch."""
+        return tuple(entry.judgment for entry in self.entries)
 
     def filter(
-        self, predicate: Callable[[TItem, TJudgment], bool]
+        self,
+        predicate: Callable[..., bool],
     ) -> JudgmentBatch[TItem, TJudgment]:
-        """Return a new JudgmentBatch containing only entries satisfying `predicate(item, judgment)`."""
-        filtered = tuple(
-            e for e in self.entries if predicate(e.item, e.judgment)
-        )
-        return JudgmentBatch(entries=filtered, global_result=self.global_result)
+        """Return a new JudgmentBatch containing only entries matching predicate."""
+        sig = inspect.signature(predicate)
+        kept: list[JudgmentBatchEntry[TItem, TJudgment]] = []
+        for entry in self.entries:
+            if len(sig.parameters) >= 2:
+                matched = predicate(entry.item, entry.judgment)
+            else:
+                matched = predicate(entry)
+            if matched:
+                kept.append(entry)
+        return JudgmentBatch(entries=tuple(kept), global_result=self.global_result)
 
     def rank_by(
         self,
-        key: Callable[[TItem, TJudgment], float],
+        key_fn: Callable[..., float],
         *,
         reverse: bool = True,
         top_k: int | None = None,
     ) -> JudgmentBatch[TItem, TJudgment]:
-        """Return a new JudgmentBatch sorted by `key(item, judgment)` and optionally truncated to `top_k`."""
-        sorted_entries = sorted(
-            self.entries,
-            key=lambda e: float(key(e.item, e.judgment)),
-            reverse=reverse,
-        )
+        """Return a new JudgmentBatch ordered by key_fn (and optionally truncated to top_k)."""
+        sig = inspect.signature(key_fn)
+
+        def _score(entry: JudgmentBatchEntry[TItem, TJudgment]) -> float:
+            if len(sig.parameters) >= 2:
+                return float(key_fn(entry.item, entry.judgment))
+            return float(key_fn(entry))
+
+        ranked = sorted(self.entries, key=_score, reverse=reverse)
         if top_k is not None:
-            sorted_entries = sorted_entries[:top_k]
-        return JudgmentBatch(
-            entries=tuple(sorted_entries), global_result=self.global_result
-        )
+            ranked = ranked[:top_k]
+        return JudgmentBatch(entries=tuple(ranked), global_result=self.global_result)
 
-    def map(self, mapper: Callable[[TItem, TJudgment], TOut]) -> list[TOut]:
-        """Transform each `(item, judgment)` pair in the batch using `mapper`."""
-        return [mapper(e.item, e.judgment) for e in self.entries]
+    def map(
+        self,
+        fn: Callable[..., TOut],
+    ) -> list[TOut]:
+        """Project each (item, judgment) or entry into a new list of values."""
+        sig = inspect.signature(fn)
+        out: list[TOut] = []
+        for entry in self.entries:
+            if len(sig.parameters) >= 2:
+                out.append(fn(entry.item, entry.judgment))
+            else:
+                out.append(fn(entry))
+        return out
 
-    def all(self, predicate: Callable[[TItem, TJudgment], bool]) -> bool:
-        """Return True if all entries in the batch satisfy `predicate(item, judgment)`."""
-        return all(predicate(e.item, e.judgment) for e in self.entries)
+    def all(
+        self,
+        predicate: Callable[..., bool],
+    ) -> bool:
+        """Return True if all entries satisfy predicate."""
+        return len(self.filter(predicate)) == len(self.entries)
 
-    def any(self, predicate: Callable[[TItem, TJudgment], bool]) -> bool:
-        """Return True if at least one entry in the batch satisfies `predicate(item, judgment)`."""
-        return any(predicate(e.item, e.judgment) for e in self.entries)
+    def any(
+        self,
+        predicate: Callable[..., bool],
+    ) -> bool:
+        """Return True if at least one entry satisfies predicate."""
+        return len(self.filter(predicate)) > 0
 
     def reduce(
         self,
-        reducer: Callable[[TAcc, TItem, TJudgment], TAcc],
-        initial: TAcc,
-    ) -> TAcc:
-        """Fold over all entries in the batch starting from `initial`."""
+        reducer: Callable[[R, TItem, TJudgment], R],
+        initial: R,
+    ) -> R:
+        """Fold over all entries in the batch."""
         acc = initial
-        for e in self.entries:
-            acc = reducer(acc, e.item, e.judgment)
+        for entry in self.entries:
+            acc = reducer(acc, entry.item, entry.judgment)
         return acc
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the batch and global judgments to a JSON-serializable dictionary."""
+        """Serialize the batch to a JSON-compatible dictionary."""
         return {
             "entries": [
                 {
                     "index": e.index,
-                    "item": _serialize_output(e.item),
+                    "item": e.item,
                     "judgment": _serialize_output(e.judgment),
+                    "raw_result": e.raw_result.model_dump(),
                 }
                 for e in self.entries
             ],
-            "global_result": self.global_result.model_dump(),
+            "global_result": (
+                self.global_result.model_dump() if self.global_result is not None else None
+            ),
         }
 
 
@@ -279,12 +316,14 @@ class JudgmentMap(JudgmentAgent):
         | None
     ) = None
     item_state_builder: Callable[[Any, int, dict[str, Any]], Any] | None = None
-    transform: Callable[[JudgmentBatch[Any, Any], dict[str, Any]], Any] | None = None
+    context_keys: Sequence[str] | None = None
+    transform: Callable[..., Any] | None = None
 
     def __init__(
         self,
         *,
         name: str,
+        description: str = "",
         items_key: str | None = None,
         items_getter: Callable[..., Sequence[Any]] | None = None,
         item_schema: type[JudgmentSchema] | None = None,
@@ -295,7 +334,8 @@ class JudgmentMap(JudgmentAgent):
             | None
         ) = None,
         item_state_builder: Callable[[Any, int, dict[str, Any]], Any] | None = None,
-        transform: Callable[[JudgmentBatch[Any, Any], dict[str, Any]], Any] | None = None,
+        context_keys: Sequence[str] | None = None,
+        transform: Callable[..., Any] | None = None,
         decide: Callable[[JudgmentBatch[Any, Any], dict[str, Any]], Any] | None = None,
         model: str = "jev-latest",
         output_key: str | None = None,
@@ -308,6 +348,7 @@ class JudgmentMap(JudgmentAgent):
             )
         super().__init__(
             name=name,
+            description=description,
             model=model,
             questions={},
             output_key=output_key,
@@ -321,6 +362,7 @@ class JudgmentMap(JudgmentAgent):
         self.item_questions = item_questions
         self.global_questions = global_questions
         self.item_state_builder = item_state_builder
+        self.context_keys = list(context_keys) if context_keys is not None else None
         self.transform = transform
 
     def _extract_items(

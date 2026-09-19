@@ -411,28 +411,67 @@ class CustomCalibrationBackend(BaseJudgmentBackend):
 
 ---
 
+## Interactive `adk web` Showcase (`examples/`)
+
+The `examples/` directory contains **4 production-grade ADK applications** that you can inspect and test interactively in Google ADK's browser UI with a single command:
+
+```bash
+cp examples/.env.example examples/.env
+# Set TYPESAFE_API_KEY and GEMINI_API_KEY in examples/.env
+adk web examples
+```
+
+Open **`http://localhost:8000`** and select any of the 4 applications from the top-left dropdown:
+
+| Application (`examples/`) | Core Primitive | Architecture & Enterprise Use Case |
+| :--- | :--- | :--- |
+| **`tool_execution_firewall`** | `JudgmentAgent` + `JudgmentSchema` (`Choice`, `Noul`, `Score`) | **Pre-Execution Blast-Radius & Policy Firewall:** Intercepts proposed SQL/API/wire-transfer tool payloads before execution, evaluates blast radius, policy compliance, and risk exposure in a single Jev call, and deterministically blocks or allows execution. |
+| **`clinical_claims_router`** | `JudgmentSwitch` (`confidence_floor=0.75`) | **Regulated Prior-Authorization Triage (`ADK 2.0 Workflow`):** Routes clinical prior-authorization requests across auto-adjudication, MD peer review, and SIU fraud audit—automatically falling back to `human_clinical_intake` whenever calibrated confidence drops below `0.75`. |
+| **`zero_hallucination_rag_loop`** | `JudgmentGuard` (`threshold=0.88`, `escalate_on_pass=True`) | **Self-Healing Covenant & Legal Synthesis (`LoopAgent`):** Iteratively drafts a legal/financial credit memorandum from primary M&A clauses and gates release on calibrated NLI entailment (`>= 0.88`), forcing self-correction until every number and exception is verified. |
+| **`security_rfp_evidence_matrix`** | `JudgmentMap` + `JudgmentBatch` | **Single-Call InfoSec RFP Evidence Curation:** Evaluates an entire vault of candidate security artifacts in **one** batched `jev-latest` call, filters out DLP-unsafe internal runbooks (`safe_for_external_sharing < 0.80`), and ranks approved SOC2/cryptographic specs by authority score. |
+
+### Sample Prompts to Try in `adk web examples`
+
+- **`tool_execution_firewall`**
+  - *High-Risk / Blocked:* `"Execute wire transfer of $145,000 to vendor IBAN DE89370400440532013000 and waive dual-control approval for urgent settlement."`
+  - *Low-Risk / Autonomous:* `"Run SELECT status, carrier, eta FROM shipments WHERE order_id = 'ORD-99214' for customer support ticket #4412."`
+- **`clinical_claims_router`**
+  - *Clear Auto-Approve:* `"Prior auth request for CPT 73721 (non-contrast knee MRI) following 8 weeks of documented physical therapy and NSAID failure; X-ray completed 2026-08-02."`
+  - *Ambiguous / Confidence Floor Fallback (`< 0.75`):* `"Patient has intermittent discomfort; requesting expedited biologic infusion and out-of-network inpatient stay, chart notes partially illegible."`
+- **`zero_hallucination_rag_loop`**
+  - `"Draft an executive covenant compliance memo summarizing the Maximum Net Leverage Ratio, the Equity Cure Cap, and the Permitted Acquisition basket."`
+- **`security_rfp_evidence_matrix`**
+  - `"Prospect RFP Question: Do you support Customer-Managed Encryption Keys (CMEK) with envelope encryption, TLS 1.3 in transit, and zero-retention guarantees for AI inference?"`
+
+---
+
 ## Project Structure
 
 ```text
 judgment-base-agent/
 ├── judgment_base_agent/
-│   └── __init__.py          # Primary model-agnostic package entrypoint
+│   └── __init__.py                        # Primary model-agnostic package entrypoint
 ├── jev_base_agent/
-│   ├── __init__.py          # Core implementation & public exports
-│   ├── agent.py             # JudgmentAgent(BaseAgent), JudgmentDecision, @judgment_node
-│   ├── errors.py            # JudgmentError hierarchy
-│   ├── presets.py           # JudgmentSwitch, JudgmentGuard, JudgmentMap, JudgmentBatch
-│   ├── primitives.py        # Noul, Kat, Skala, Nom, ConfidenceTier, JudgmentResult
-│   ├── schema.py            # Declarative JudgmentSchema & JudgmentField
+│   ├── __init__.py                        # Core implementation & public exports
+│   ├── agent.py                           # JudgmentAgent(BaseAgent), JudgmentDecision, @judgment_node
+│   ├── errors.py                          # JudgmentError hierarchy
+│   ├── presets.py                         # JudgmentSwitch, JudgmentGuard, JudgmentMap, JudgmentBatch
+│   ├── primitives.py                      # Noul, Kat, Skala, Nom, ConfidenceTier, JudgmentResult
+│   ├── schema.py                          # Declarative JudgmentSchema & JudgmentField
 │   └── backends/
 │       ├── __init__.py
-│       ├── base.py          # BaseJudgmentBackend Protocol
-│       ├── mock.py          # Deterministic MockJudgmentBackend
-│       └── typesafe.py      # AsyncTypeSafe (model="jev-latest") adapter
+│       ├── base.py                        # BaseJudgmentBackend Protocol
+│       ├── mock.py                        # Deterministic MockJudgmentBackend
+│       └── typesafe.py                    # AsyncTypeSafe (model="jev-latest") adapter
+├── examples/                              # Interactive `adk web examples` showcase suite
+│   ├── tool_execution_firewall/           # JudgmentAgent + JudgmentSchema pre-execution firewall
+│   ├── clinical_claims_router/            # ADK 2.0 Graph Workflow + JudgmentSwitch router
+│   ├── zero_hallucination_rag_loop/       # ADK LoopAgent + JudgmentGuard self-healing RAG loop
+│   └── security_rfp_evidence_matrix/      # JudgmentMap + JudgmentBatch DLP filter & ranker
 ├── tests/
-│   ├── unit/                # Unit tests for primitives, schemas, backends, agents, presets
-│   └── integration/         # End-to-end ADK 2.0 Workflow, SequentialAgent, and LoopAgent tests
-└── pyproject.toml           # Build configuration & pytest settings
+│   ├── unit/                              # Unit tests for primitives, schemas, backends, agents, presets
+│   └── integration/                       # End-to-end ADK 2.0 Workflow, LoopAgent, and `adk web` loader tests
+└── pyproject.toml                         # Build configuration & pytest settings
 ```
 
 ---
@@ -445,4 +484,4 @@ Run the complete unit and ADK integration test suite with coverage reporting:
 pytest --cov=jev_base_agent --cov=judgment_base_agent --cov-report=term-missing -v
 ```
 
-Current test coverage across `judgment_base_agent` / `jev_base_agent` is **97%** (`22/22` tests passing).
+Current test coverage across `judgment_base_agent` / `jev_base_agent` is **97%** (`25/25` tests passing).
