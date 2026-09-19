@@ -4,14 +4,14 @@ from types import SimpleNamespace
 import pytest
 import typesafe_sdk
 
-from jev_base_agent.backends import (
+from judgment_base_agent.backends import (
     BaseJudgmentBackend,
     MockJudgmentBackend,
     TypeSafeBackend,
 )
-from jev_base_agent.backends.typesafe import _question_kind, _to_typesafe_question
-from jev_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
-from jev_base_agent.primitives import (
+from judgment_base_agent.backends.typesafe import _question_kind, _to_typesafe_question
+from judgment_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
+from judgment_base_agent.primitives import (
     Choice,
     ChoiceJudgment,
     Noul,
@@ -86,7 +86,7 @@ async def test_typesafe_backend_with_injected_client_and_sdk_primitives() -> Non
             captured["questions"] = questions
             captured["model"] = model
             return SimpleNamespace(
-                model=model or "jev-latest",
+                model=model or "judgment-latest",
                 usage=SimpleNamespace(input_tokens=15, output_tokens=3),
                 choices={
                     "dept": SimpleNamespace(
@@ -106,12 +106,12 @@ async def test_typesafe_backend_with_injected_client_and_sdk_primitives() -> Non
                 nouls={"refund": SimpleNamespace(noul=0.12)},
             )
 
-    backend = TypeSafeBackend(client=FakeClient(), default_model="jev-latest")
+    backend = TypeSafeBackend(client=FakeClient(), default_model="judgment-latest")
     assert isinstance(backend, BaseJudgmentBackend)
 
     # Empty questions short-circuit
     empty_res = await backend.evaluate(state={}, questions={})
-    assert empty_res.model == "jev-latest"
+    assert empty_res.model == "judgment-latest"
 
     questions = {
         "dept": Choice(instructions="Which dept?", criteria=["billing", "tech"]),
@@ -125,7 +125,7 @@ async def test_typesafe_backend_with_injected_client_and_sdk_primitives() -> Non
     }
 
     result = await backend.evaluate(state={"text": "500 error"}, questions=questions)
-    assert captured["model"] == "jev-latest"
+    assert captured["model"] == "judgment-latest"
     assert isinstance(captured["questions"]["dept"], typesafe_sdk.Choice)
     assert isinstance(captured["questions"]["refund"], typesafe_sdk.Noul)
     assert result.choice("dept") == "tech"
@@ -166,7 +166,7 @@ async def test_typesafe_backend_conversion_and_error_handling() -> None:
     class LegacyClient:
         async def system_one(self, *, state, questions):
             return SimpleNamespace(
-                model="legacy-jev",
+                model="legacy-judgment",
                 answers={"q": SimpleNamespace(noul=0.55)},
             )
 

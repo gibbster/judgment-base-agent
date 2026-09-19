@@ -1,7 +1,7 @@
 """04_security_rfp_evidence_matrix — Single-Call InfoSec RFP Evidence Curation & DLP Matrix.
 
 Demonstrates `JudgmentMap` + `JudgmentBatch` evaluating an entire vault of retrieved
-engineering/security snippets in a single batched Jev call (`answers_requirement`,
+engineering/security snippets in a single batched Judgment call (`answers_requirement`,
 `safe_for_external_sharing` DLP check, and `evidence_strength`), stripping any snippet
 that contains unredacted internal secrets/IPs, and ranking the top customer-safe
 controls before synthesizing the final RFP response.
@@ -10,6 +10,7 @@ controls before synthesizing the final RFP response.
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,9 @@ from typing import Any
 from dotenv import load_dotenv
 from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 from google.adk.agents.invocation_context import InvocationContext
@@ -78,7 +82,7 @@ CANDIDATE_SECURITY_ARTIFACTS: list[dict[str, str]] = [
 
 
 class ArtifactAuditSchema(JudgmentSchema):
-    """Per-artifact judgment schema evaluated across all retrieved vault snippets in one Jev call."""
+    """Per-artifact judgment schema evaluated across all retrieved vault snippets in one Judgment call."""
 
     answers_requirement: NoulJudgment = JudgmentField(
         Noul(
@@ -133,7 +137,7 @@ class RfpVaultRetriever(BaseAgent):
                 role="model",
                 parts=[
                     types.Part.from_text(
-                        text=f"Retrieved {len(CANDIDATE_SECURITY_ARTIFACTS)} candidate vault artifacts for batched Jev evaluation."
+                        text=f"Retrieved {len(CANDIDATE_SECURITY_ARTIFACTS)} candidate vault artifacts for batched Judgment evaluation."
                     )
                 ],
             ),
@@ -194,7 +198,7 @@ rfp_vault_retriever = RfpVaultRetriever(
 
 evidence_matrix_map = JudgmentMap(
     name="evidence_matrix_map",
-    description="Evaluates all 5 candidate vault artifacts for relevance, DLP safety, and strength in 1 batched Jev call.",
+    description="Evaluates all 5 candidate vault artifacts for relevance, DLP safety, and strength in 1 batched Judgment call.",
     items_key="candidate_artifacts",
     item_schema=ArtifactAuditSchema,
     context_keys=["rfp_question"],
@@ -211,7 +215,7 @@ rfp_response_synthesizer = LlmAgent(
         "Review the Curated Evidence Matrix produced by `JudgmentMap` in session state:\n"
         "{curated_evidence_matrix}\n\n"
         "Draft an executive response to the prospect's security questionnaire (`{rfp_question}`) containing:\n"
-        "1. **Batched Jev Curation & DLP Summary** (How many artifacts were evaluated in 1 call, which artifact IDs were blocked by the DLP `safe_for_external_sharing` check, and which were approved & ranked)\n"
+        "1. **Batched Judgment Curation & DLP Summary** (How many artifacts were evaluated in 1 call, which artifact IDs were blocked by the DLP `safe_for_external_sharing` check, and which were approved & ranked)\n"
         "2. **Customer-Facing Security Control Response** citing only the approved, ranked artifacts (`id` and `title`)."
     ),
 )

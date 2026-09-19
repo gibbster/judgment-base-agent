@@ -6,8 +6,8 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import JudgmentResult
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import JudgmentResult
 
 _JUDGMENT_QUESTION_META = "judgment_question"
 _JUDGMENT_KEY_META = "judgment_key"

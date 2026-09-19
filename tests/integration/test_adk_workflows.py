@@ -9,7 +9,7 @@ from google.adk.runners import InMemoryRunner
 from google.adk.workflow import Workflow
 from google.genai import types
 
-from jev_base_agent import (
+from judgment_base_agent import (
     JudgmentField,
     JudgmentGuard,
     JudgmentMap,

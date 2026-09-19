@@ -19,11 +19,11 @@ from google.adk.workflow.utils._workflow_hitl_utils import (
 from google.genai import types
 from pydantic import BaseModel, ConfigDict
 
-from jev_base_agent.backends.base import BaseJudgmentBackend
-from jev_base_agent.backends.typesafe import TypeSafeBackend
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import JudgmentResult
-from jev_base_agent.schema import JudgmentSchema
+from judgment_base_agent.backends.base import BaseJudgmentBackend
+from judgment_base_agent.backends.typesafe import TypeSafeBackend
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import JudgmentResult
+from judgment_base_agent.schema import JudgmentSchema
 
 
 @dataclass(frozen=True)
@@ -113,7 +113,7 @@ class JudgmentAgent(BaseAgent):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    model: str = "jev-latest"
+    model: str = "judgment-latest"
     schema_cls: type[JudgmentSchema] | None = None
     questions: Mapping[str, Any] | Callable[..., Mapping[str, Any]] | None = None
     state_keys: Sequence[str] | None = None
@@ -129,7 +129,7 @@ class JudgmentAgent(BaseAgent):
         *,
         name: str,
         description: str = "",
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         schema: type[JudgmentSchema] | None = None,
         questions: Mapping[str, Any] | Callable[..., Mapping[str, Any]] | None = None,
         state_keys: Sequence[str] | None = None,
@@ -289,7 +289,7 @@ def judgment_node(
     name: str | None = None,
     schema: type[JudgmentSchema] | None = None,
     questions: Mapping[str, Any] | Callable[..., Mapping[str, Any]] | None = None,
-    model: str = "jev-latest",
+    model: str = "judgment-latest",
     state_keys: Sequence[str] | None = None,
     state_builder: Callable[..., Any] | None = None,
     output_key: str | None = None,
@@ -314,4 +314,4 @@ def judgment_node(
     return decorator
 
 
-sys.modules.setdefault("jev_base_agent/agent", sys.modules[__name__])
+sys.modules.setdefault("judgment_base_agent/agent", sys.modules[__name__])

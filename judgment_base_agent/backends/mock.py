@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from jev_base_agent.backends.typesafe import _question_kind
-from jev_base_agent.primitives import (
+from judgment_base_agent.backends.typesafe import _question_kind
+from judgment_base_agent.primitives import (
     ChoiceJudgment,
     JudgmentResult,
     JudgmentUsage,
@@ -24,7 +24,7 @@ class MockJudgmentBackend:
             Mapping[str, Any]
             | Callable[[Any, Mapping[str, Any], str], Mapping[str, Any]]
         ),
-        default_model: str = "mock-jev",
+        default_model: str = "mock-judgment",
         confidence_floor: float = 0.50,
     ) -> None:
         self.responses = responses

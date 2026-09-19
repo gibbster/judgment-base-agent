@@ -1,19 +1,23 @@
 """01_tool_execution_firewall — Pre-Execution Action & Blast-Radius Firewall.
 
 Evaluates proposed agentic tool executions (e.g., wire transfers, database
-mutations, IAM escalations) in a single calibrated Jev call (`Choice` + `Noul` + `Score`)
+mutations, IAM escalations) in a single calibrated Judgment call (`Choice` + `Noul` + `Score`)
 before allowing autonomous execution or escalating to SecOps / Dual-Control approval.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent, SequentialAgent
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 
@@ -116,7 +120,7 @@ def firewall_policy(
 
 action_firewall_evaluator = JudgmentAgent(
     name="action_firewall_evaluator",
-    description="Evaluates blast radius, policy compliance, and risk exposure in a single Jev call.",
+    description="Evaluates blast radius, policy compliance, and risk exposure in a single Judgment call.",
     schema=ActionRiskSchema,
     output_key="firewall_assessment",
     decide=firewall_policy,
@@ -139,7 +143,7 @@ execution_dispatcher = LlmAgent(
     model=GEMINI_MODEL,
     instruction=(
         "You are the enterprise execution dispatcher. Review the proposed action in "
-        "{proposed_action_payload} and the calibrated Jev firewall decision in "
+        "{proposed_action_payload} and the calibrated Judgment firewall decision in "
         "{firewall_telemetry} (verdict: {firewall_verdict}).\n"
         "- If verdict is ALLOW_AUTONOMOUS_EXECUTION, confirm execution and summarize the result.\n"
         "- If verdict is REQUIRE_DUAL_CONTROL_APPROVAL, generate a dual-control approval ticket with the calibrated probabilities.\n"

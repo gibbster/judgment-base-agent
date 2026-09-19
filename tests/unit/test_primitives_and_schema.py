@@ -3,8 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import (
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import (
     Choice,
     ChoiceJudgment,
     JudgmentResult,
@@ -15,7 +15,7 @@ from jev_base_agent.primitives import (
     ScoreJudgment,
     classify_confidence_tier,
 )
-from jev_base_agent.schema import JudgmentField, JudgmentSchema
+from judgment_base_agent.schema import JudgmentField, JudgmentSchema
 
 
 def test_question_primitives_immutability_and_validation() -> None:
@@ -56,7 +56,7 @@ def test_confidence_tier_and_judgment_result_accessors() -> None:
             )
         },
         nouls={"billing": NoulJudgment(noul=0.94)},
-        model="jev-latest",
+        model="judgment-latest",
         usage=JudgmentUsage(input_tokens=42, output_tokens=7),
     )
 

@@ -8,6 +8,7 @@ clinical intake specialist rather than risking an uncalibrated automated adjudic
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,9 @@ from dotenv import load_dotenv
 from google.adk.apps import App
 from google.adk.workflow import START, Workflow, node
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from judgment_base_agent import JudgmentSwitch
@@ -77,7 +81,7 @@ def siu_fraud_investigation(node_input: Any) -> dict[str, Any]:
 
 
 def human_clinical_intake(node_input: Any) -> dict[str, Any]:
-    """Mandatory safe fallback when Jev confidence < 0.75 or documentation is incomplete."""
+    """Mandatory safe fallback when Judgment confidence < 0.75 or documentation is incomplete."""
     return {
         "adjudication_track": "HUMAN_CLINICAL_INTAKE_FALLBACK",
         "sla": "4-Hour RN Triage Queue",

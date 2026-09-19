@@ -5,12 +5,12 @@ from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from jev_base_agent import (
+from judgment_base_agent import (
     Choice,
     ChoiceJudgment,
-    JevAgent,
-    JevGate,
-    JevRouter,
+    SystemOneAgent,
+    SystemOneGate,
+    SystemOneRouter,
     JudgmentBatch,
     JudgmentConfigError,
     JudgmentDecision,
@@ -30,15 +30,15 @@ from jev_base_agent import (
 
 
 def test_aliases_are_identical() -> None:
-    import jev_base_agent
+    import judgment_base_agent
     import judgment_base_agent
 
-    assert SystemOneAgent is JevAgent
+    assert SystemOneAgent is SystemOneAgent
     assert JudgmentRouter is JudgmentSwitch
-    assert JevRouter is JudgmentSwitch
-    assert JevGate is JudgmentGuard
-    assert judgment_base_agent.JudgmentAgent is jev_base_agent.JudgmentAgent
-    assert judgment_base_agent.__all__ == jev_base_agent.__all__
+    assert SystemOneRouter is JudgmentSwitch
+    assert SystemOneGate is JudgmentGuard
+    assert judgment_base_agent.JudgmentAgent is judgment_base_agent.JudgmentAgent
+    assert judgment_base_agent.__all__ == judgment_base_agent.__all__
 
 
 def test_presets_validation_errors() -> None:

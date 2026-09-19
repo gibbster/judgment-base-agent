@@ -1,8 +1,8 @@
-# ADK Judgment Primitives (`jev-base-agent`) Implementation Plan
+# ADK Judgment Primitives (`judgment-base-agent`) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a model-agnostic, high-ergonomics Google ADK library (`jev_base_agent`) providing `JudgmentAgent`, `JudgmentSchema`, `JudgmentSwitch`, `JudgmentGuard`, and `JudgmentMap` (`JudgmentBatch`) to seamlessly integrate calibrated System One models (`model="jev-latest"`) into both ADK 2.0 Graph `Workflow`s and ADK Composite Agents (`SequentialAgent`, `ParallelAgent`, `LoopAgent`).
+**Goal:** Build a model-agnostic, high-ergonomics Google ADK library (`judgment_base_agent`) providing `JudgmentAgent`, `JudgmentSchema`, `JudgmentSwitch`, `JudgmentGuard`, and `JudgmentMap` (`JudgmentBatch`) to seamlessly integrate calibrated System One models (`model="judgment-latest"`) into both ADK 2.0 Graph `Workflow`s and ADK Composite Agents (`SequentialAgent`, `ParallelAgent`, `LoopAgent`).
 
 **Architecture:** The package separates model-agnostic question/answer primitives (`Choice`, `Score`, `Noul`, `JudgmentResult`) and declarative Pydantic schemas (`JudgmentSchema`) from the evaluation backend protocol (`BaseJudgmentBackend`, implemented by `TypeSafeBackend` and `MockJudgmentBackend`). `JudgmentAgent` subclasses `google.adk.agents.BaseAgent` and emits unified ADK `Event`s containing `output`, `actions.route`, `actions.state_delta`, `actions.escalate`, and `actions.transfer_to_agent`, allowing the same class and its three universal workflow presets (`JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`) to work identically in `google.adk.workflow.Workflow` and `SequentialAgent` / `LoopAgent`.
 
@@ -14,9 +14,9 @@
 
 - Target Framework: `google-adk >= 2.7.0` and `typesafe-sdk >= 0.1.0`.
 - Python runner in this environment: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest`.
-- Minimum test coverage: `>= 85%` across `jev_base_agent`.
+- Minimum test coverage: `>= 85%` across `judgment_base_agent`.
 - Immutability: All question primitives (`Choice`, `Score`, `Noul`), answer models (`ChoiceJudgment`, `ScoreJudgment`, `NoulJudgment`, `JudgmentResult`), `JudgmentBatch`, and `JudgmentDecision` must be frozen/immutable.
-- Primary names (`JudgmentAgent`, `JudgmentSchema`, `JudgmentField`, `JudgmentDecision`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`, `JudgmentBatch`, `judgment_node`) and aliases (`SystemOneAgent`, `JevAgent`, `JudgmentRouter`, `SystemOneRouter`, `JevRouter`, `JudgmentGate`, `SystemOneGate`, `JevGate`) must all be exported from `jev_base_agent`.
+- Primary names (`JudgmentAgent`, `JudgmentSchema`, `JudgmentField`, `JudgmentDecision`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`, `JudgmentBatch`, `judgment_node`) and aliases (`SystemOneAgent`, `SystemOneAgent`, `JudgmentRouter`, `SystemOneRouter`, `SystemOneRouter`, `JudgmentGate`, `SystemOneGate`, `SystemOneGate`) must all be exported from `judgment_base_agent`.
 - No hardcoded secrets (`TYPESAFE_API_KEY` read from environment or explicit argument).
 
 ---
@@ -26,17 +26,17 @@
 **Files:**
 - Create: `pyproject.toml`
 - Create: `.gitignore`
-- Create: `jev_base_agent/errors.py`
-- Create: `jev_base_agent/primitives.py`
-- Create: `jev_base_agent/schema.py`
+- Create: `judgment_base_agent/errors.py`
+- Create: `judgment_base_agent/primitives.py`
+- Create: `judgment_base_agent/schema.py`
 - Test: `tests/unit/test_primitives_and_schema.py`
 
 **Interfaces:**
 - Consumes: `pydantic.BaseModel`, `pydantic.ConfigDict`, `pydantic.Field`
 - Produces:
-  - `jev_base_agent.errors.JudgmentError`, `JudgmentConfigError`, `JudgmentEvaluationError`
-  - `jev_base_agent.primitives.Choice`, `Score`, `Noul`, `ConfidenceTier`, `classify_confidence_tier(confidence: float, floor: float = 0.50) -> ConfidenceTier`, `ChoiceJudgment`, `ScoreJudgment`, `NoulJudgment`, `JudgmentUsage`, `JudgmentResult`
-  - `jev_base_agent.schema.JudgmentField(question: Choice | Score | Noul | Any, *, key: str | None = None)`, `JudgmentSchema(BaseModel)` with `.build_questions() -> dict[str, Any]` and `.from_result(result: JudgmentResult) -> Self`
+  - `judgment_base_agent.errors.JudgmentError`, `JudgmentConfigError`, `JudgmentEvaluationError`
+  - `judgment_base_agent.primitives.Choice`, `Score`, `Noul`, `ConfidenceTier`, `classify_confidence_tier(confidence: float, floor: float = 0.50) -> ConfidenceTier`, `ChoiceJudgment`, `ScoreJudgment`, `NoulJudgment`, `JudgmentUsage`, `JudgmentResult`
+  - `judgment_base_agent.schema.JudgmentField(question: Choice | Score | Noul | Any, *, key: str | None = None)`, `JudgmentSchema(BaseModel)` with `.build_questions() -> dict[str, Any]` and `.from_result(result: JudgmentResult) -> Self`
 
 - [ ] **Step 1: Create `pyproject.toml`, `.gitignore`, and write the failing unit test `tests/unit/test_primitives_and_schema.py`**
 
@@ -47,7 +47,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jev-base-agent"
+name = "judgment-base-agent"
 version = "0.1.0"
 description = "Model-agnostic System One / Judgment primitives (JudgmentAgent, JudgmentSwitch, JudgmentGuard, JudgmentMap) for Google ADK workflows."
 readme = "README.md"
@@ -71,8 +71,8 @@ Create `tests/unit/test_primitives_and_schema.py`:
 import pytest
 from pydantic import ValidationError
 
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import (
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import (
     Choice,
     ChoiceJudgment,
     JudgmentResult,
@@ -83,7 +83,7 @@ from jev_base_agent.primitives import (
     ScoreJudgment,
     classify_confidence_tier,
 )
-from jev_base_agent.schema import JudgmentField, JudgmentSchema
+from judgment_base_agent.schema import JudgmentField, JudgmentSchema
 
 
 def test_question_primitives_immutability_and_validation() -> None:
@@ -124,7 +124,7 @@ def test_confidence_tier_and_judgment_result_accessors() -> None:
             )
         },
         nouls={"billing": NoulJudgment(noul=0.94)},
-        model="jev-latest",
+        model="judgment-latest",
         usage=JudgmentUsage(input_tokens=42, output_tokens=7),
     )
 
@@ -199,13 +199,13 @@ def test_declarative_judgment_schema_roundtrip() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest tests/unit/test_primitives_and_schema.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'jev_base_agent'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'judgment_base_agent'`
 
-- [ ] **Step 3: Implement `jev_base_agent/errors.py`, `jev_base_agent/primitives.py`, and `jev_base_agent/schema.py`**
+- [ ] **Step 3: Implement `judgment_base_agent/errors.py`, `judgment_base_agent/primitives.py`, and `judgment_base_agent/schema.py`**
 
-Create `jev_base_agent/errors.py`:
+Create `judgment_base_agent/errors.py`:
 ```python
-"""Custom exception hierarchy for jev_base_agent."""
+"""Custom exception hierarchy for judgment_base_agent."""
 
 from __future__ import annotations
 
@@ -222,7 +222,7 @@ class JudgmentEvaluationError(JudgmentError):
     """Raised when a judgment backend fails to evaluate a request."""
 ```
 
-Create `jev_base_agent/primitives.py`:
+Create `judgment_base_agent/primitives.py`:
 ```python
 """Model-agnostic question and answer primitives for System One / Judgment workflows."""
 
@@ -234,7 +234,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from jev_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.errors import JudgmentConfigError
 
 ConfidenceTier = Literal["high", "medium", "low"]
 
@@ -383,7 +383,7 @@ class JudgmentResult(BaseModel):
     choices: dict[str, ChoiceJudgment] = Field(default_factory=dict)
     scores: dict[str, ScoreJudgment] = Field(default_factory=dict)
     nouls: dict[str, NoulJudgment] = Field(default_factory=dict)
-    model: str = "jev-latest"
+    model: str = "judgment-latest"
     usage: JudgmentUsage | None = None
 
     def get(self, key: str) -> ChoiceJudgment | ScoreJudgment | NoulJudgment:
@@ -429,7 +429,7 @@ class JudgmentResult(BaseModel):
         raise KeyError(f"Question key '{key}' not found in JudgmentResult.")
 ```
 
-Create `jev_base_agent/schema.py`:
+Create `judgment_base_agent/schema.py`:
 ```python
 """Declarative Pydantic schema binding fields to Choice, Score, and Noul primitives."""
 
@@ -439,8 +439,8 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import JudgmentResult
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import JudgmentResult
 
 _JUDGMENT_QUESTION_META = "judgment_question"
 _JUDGMENT_KEY_META = "judgment_key"
@@ -513,7 +513,7 @@ Expected: PASS (all 3 tests passing)
 - [ ] **Step 5: Commit Task 1**
 
 ```bash
-git add pyproject.toml .gitignore jev_base_agent/errors.py jev_base_agent/primitives.py jev_base_agent/schema.py tests/unit/test_primitives_and_schema.py
+git add pyproject.toml .gitignore judgment_base_agent/errors.py judgment_base_agent/primitives.py judgment_base_agent/schema.py tests/unit/test_primitives_and_schema.py
 git commit -m "feat: add model-agnostic judgment primitives and JudgmentSchema"
 ```
 
@@ -522,18 +522,18 @@ git commit -m "feat: add model-agnostic judgment primitives and JudgmentSchema"
 ### Task 2: Model-Agnostic Backend Protocol (`backends/base.py`), `TypeSafeBackend` (`backends/typesafe.py`) & `MockJudgmentBackend` (`backends/mock.py`)
 
 **Files:**
-- Create: `jev_base_agent/backends/__init__.py`
-- Create: `jev_base_agent/backends/base.py`
-- Create: `jev_base_agent/backends/typesafe.py`
-- Create: `jev_base_agent/backends/mock.py`
+- Create: `judgment_base_agent/backends/__init__.py`
+- Create: `judgment_base_agent/backends/base.py`
+- Create: `judgment_base_agent/backends/typesafe.py`
+- Create: `judgment_base_agent/backends/mock.py`
 - Test: `tests/unit/test_backends.py`
 
 **Interfaces:**
 - Consumes: `Choice`, `Score`, `Noul`, `ChoiceJudgment`, `ScoreJudgment`, `NoulJudgment`, `JudgmentUsage`, `JudgmentResult`, `JudgmentConfigError`, `JudgmentEvaluationError`
 - Produces:
   - `BaseJudgmentBackend(Protocol)` with `async def evaluate(self, state: Any, questions: Mapping[str, Any], model: str | None = None) -> JudgmentResult`
-  - `TypeSafeBackend(api_key: str | None = None, default_model: str = "jev-latest", confidence_floor: float = 0.50, client: Any | None = None)`
-  - `MockJudgmentBackend(responses: Mapping[str, Any] | Callable[[Any, Mapping[str, Any], str], Mapping[str, Any]], default_model: str = "mock-jev", confidence_floor: float = 0.50)`
+  - `TypeSafeBackend(api_key: str | None = None, default_model: str = "judgment-latest", confidence_floor: float = 0.50, client: Any | None = None)`
+  - `MockJudgmentBackend(responses: Mapping[str, Any] | Callable[[Any, Mapping[str, Any], str], Mapping[str, Any]], default_model: str = "mock-judgment", confidence_floor: float = 0.50)`
 
 - [ ] **Step 1: Write the failing unit test `tests/unit/test_backends.py`**
 
@@ -545,10 +545,10 @@ from types import SimpleNamespace
 import pytest
 import typesafe_sdk
 
-from jev_base_agent.backends.mock import MockJudgmentBackend
-from jev_base_agent.backends.typesafe import TypeSafeBackend
-from jev_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
-from jev_base_agent.primitives import Choice, Noul, Score
+from judgment_base_agent.backends.mock import MockJudgmentBackend
+from judgment_base_agent.backends.typesafe import TypeSafeBackend
+from judgment_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
+from judgment_base_agent.primitives import Choice, Noul, Score
 
 
 @pytest.mark.asyncio
@@ -582,7 +582,7 @@ async def test_typesafe_backend_with_injected_client_and_sdk_primitives() -> Non
             captured["questions"] = questions
             captured["model"] = model
             return SimpleNamespace(
-                model=model or "jev-latest",
+                model=model or "judgment-latest",
                 usage=SimpleNamespace(input_tokens=15, output_tokens=3),
                 choices={
                     "dept": SimpleNamespace(
@@ -602,7 +602,7 @@ async def test_typesafe_backend_with_injected_client_and_sdk_primitives() -> Non
                 nouls={"refund": SimpleNamespace(noul=0.12)},
             )
 
-    backend = TypeSafeBackend(client=FakeClient(), default_model="jev-latest")
+    backend = TypeSafeBackend(client=FakeClient(), default_model="judgment-latest")
     questions = {
         "dept": Choice(instructions="Which dept?", criteria=["billing", "tech"]),
         "frustration": typesafe_sdk.Score(
@@ -615,7 +615,7 @@ async def test_typesafe_backend_with_injected_client_and_sdk_primitives() -> Non
     }
 
     result = await backend.evaluate(state={"text": "500 error"}, questions=questions)
-    assert captured["model"] == "jev-latest"
+    assert captured["model"] == "judgment-latest"
     assert isinstance(captured["questions"]["dept"], typesafe_sdk.Choice)
     assert isinstance(captured["questions"]["refund"], typesafe_sdk.Noul)
     assert result.choice("dept") == "tech"
@@ -639,11 +639,11 @@ async def test_typesafe_backend_missing_api_key_raises_clean_error(monkeypatch) 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest tests/unit/test_backends.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'jev_base_agent.backends'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'judgment_base_agent.backends'`
 
-- [ ] **Step 3: Implement `jev_base_agent/backends/` (`base.py`, `typesafe.py`, `mock.py`, `__init__.py`)**
+- [ ] **Step 3: Implement `judgment_base_agent/backends/` (`base.py`, `typesafe.py`, `mock.py`, `__init__.py`)**
 
-Create `jev_base_agent/backends/base.py`:
+Create `judgment_base_agent/backends/base.py`:
 ```python
 """Protocol for model-agnostic Judgment evaluation backends."""
 
@@ -652,7 +652,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from jev_base_agent.primitives import JudgmentResult
+from judgment_base_agent.primitives import JudgmentResult
 
 
 @runtime_checkable
@@ -669,9 +669,9 @@ class BaseJudgmentBackend(Protocol):
         ...
 ```
 
-Create `jev_base_agent/backends/typesafe.py`:
+Create `judgment_base_agent/backends/typesafe.py`:
 ```python
-"""TypeSafe AI System One (Jev) backend implementation."""
+"""TypeSafe AI System One Judgment backend implementation."""
 
 from __future__ import annotations
 
@@ -681,8 +681,8 @@ from typing import Any
 
 import typesafe_sdk
 
-from jev_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
-from jev_base_agent.primitives import (
+from judgment_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
+from judgment_base_agent.primitives import (
     Choice,
     ChoiceJudgment,
     JudgmentResult,
@@ -746,12 +746,12 @@ def _question_kind(q: Any) -> str:
 
 
 class TypeSafeBackend:
-    """Judgment backend powered by TypeSafe's AsyncTypeSafeClient (default model: 'jev-latest')."""
+    """Judgment backend powered by TypeSafe's AsyncTypeSafeClient (default model: 'judgment-latest')."""
 
     def __init__(
         self,
         api_key: str | None = None,
-        default_model: str = "jev-latest",
+        default_model: str = "judgment-latest",
         confidence_floor: float = 0.50,
         client: Any | None = None,
     ) -> None:
@@ -858,7 +858,7 @@ class TypeSafeBackend:
         )
 ```
 
-Create `jev_base_agent/backends/mock.py`:
+Create `judgment_base_agent/backends/mock.py`:
 ```python
 """Deterministic MockJudgmentBackend for offline unit and integration tests."""
 
@@ -867,8 +867,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from jev_base_agent.backends.typesafe import _question_kind
-from jev_base_agent.primitives import (
+from judgment_base_agent.backends.typesafe import _question_kind
+from judgment_base_agent.primitives import (
     ChoiceJudgment,
     JudgmentResult,
     JudgmentUsage,
@@ -886,7 +886,7 @@ class MockJudgmentBackend:
             Mapping[str, Any]
             | Callable[[Any, Mapping[str, Any], str], Mapping[str, Any]]
         ),
-        default_model: str = "mock-jev",
+        default_model: str = "mock-judgment",
         confidence_floor: float = 0.50,
     ) -> None:
         self.responses = responses
@@ -972,13 +972,13 @@ class MockJudgmentBackend:
         )
 ```
 
-Create `jev_base_agent/backends/__init__.py`:
+Create `judgment_base_agent/backends/__init__.py`:
 ```python
 """Judgment evaluation backends."""
 
-from jev_base_agent.backends.base import BaseJudgmentBackend
-from jev_base_agent.backends.mock import MockJudgmentBackend
-from jev_base_agent.backends.typesafe import TypeSafeBackend
+from judgment_base_agent.backends.base import BaseJudgmentBackend
+from judgment_base_agent.backends.mock import MockJudgmentBackend
+from judgment_base_agent.backends.typesafe import TypeSafeBackend
 
 __all__ = [
     "BaseJudgmentBackend",
@@ -995,7 +995,7 @@ Expected: PASS (all 3 tests passing)
 - [ ] **Step 5: Commit Task 2**
 
 ```bash
-git add jev_base_agent/backends/ tests/unit/test_backends.py
+git add judgment_base_agent/backends/ tests/unit/test_backends.py
 git commit -m "feat: add BaseJudgmentBackend protocol, TypeSafeBackend, and MockJudgmentBackend"
 ```
 
@@ -1004,14 +1004,14 @@ git commit -m "feat: add BaseJudgmentBackend protocol, TypeSafeBackend, and Mock
 ### Task 3: Core `JudgmentAgent(BaseAgent)`, `JudgmentDecision` & `@judgment_node` Decorator (`agent.py`)
 
 **Files:**
-- Create: `jev_base_agent/agent.py`
+- Create: `judgment_base_agent/agent.py`
 - Test: `tests/unit/test_judgment_agent.py`
 
 **Interfaces:**
 - Consumes: `google.adk.agents.BaseAgent`, `google.adk.agents.invocation_context.InvocationContext`, `google.adk.events.Event`, `google.adk.events.EventActions`, `google.adk.events.request_input.RequestInput`, `BaseJudgmentBackend`, `TypeSafeBackend`, `JudgmentSchema`, `JudgmentResult`
 - Produces:
   - `JudgmentDecision` frozen dataclass (`output`, `route`, `escalate`, `transfer_to_agent`, `state_delta`, `request_input_id`, `request_input_prompt`)
-  - `JudgmentAgent(BaseAgent)` supporting `schema` or `questions` (static mapping or callable), `state_keys` or `state_builder`, `output_key`, `decide` hook, `on_error` fallback, `model="jev-latest"`, `backend`
+  - `JudgmentAgent(BaseAgent)` supporting `schema` or `questions` (static mapping or callable), `state_keys` or `state_builder`, `output_key`, `decide` hook, `on_error` fallback, `model="judgment-latest"`, `backend`
   - `@judgment_node` decorator wrapping a Python `(typed_result, state, node_input) -> Any` function into a `JudgmentAgent`
 
 - [ ] **Step 1: Write the failing unit test `tests/unit/test_judgment_agent.py`**
@@ -1025,11 +1025,11 @@ from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from jev_base_agent.agent import JudgmentAgent, JudgmentDecision, judgment_node
-from jev_base_agent.backends.mock import MockJudgmentBackend
-from jev_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
-from jev_base_agent.primitives import Choice, ChoiceJudgment, Noul, NoulJudgment
-from jev_base_agent.schema import JudgmentField, JudgmentSchema
+from judgment_base_agent.agent import JudgmentAgent, JudgmentDecision, judgment_node
+from judgment_base_agent.backends.mock import MockJudgmentBackend
+from judgment_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
+from judgment_base_agent.primitives import Choice, ChoiceJudgment, Noul, NoulJudgment
+from judgment_base_agent.schema import JudgmentField, JudgmentSchema
 
 
 class TriageSchema(JudgmentSchema):
@@ -1148,11 +1148,11 @@ def test_judgment_agent_requires_schema_or_questions() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest tests/unit/test_judgment_agent.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'jev_base_agent.agent'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'judgment_base_agent.agent'`
 
-- [ ] **Step 3: Implement `jev_base_agent/agent.py`**
+- [ ] **Step 3: Implement `judgment_base_agent/agent.py`**
 
-Create `jev_base_agent/agent.py`:
+Create `judgment_base_agent/agent.py`:
 ```python
 """Core JudgmentAgent(BaseAgent), JudgmentDecision, and @judgment_node decorator."""
 
@@ -1171,11 +1171,11 @@ from google.adk.events.request_input import RequestInput
 from google.genai import types
 from pydantic import BaseModel, ConfigDict
 
-from jev_base_agent.backends.base import BaseJudgmentBackend
-from jev_base_agent.backends.typesafe import TypeSafeBackend
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import JudgmentResult
-from jev_base_agent.schema import JudgmentSchema
+from judgment_base_agent.backends.base import BaseJudgmentBackend
+from judgment_base_agent.backends.typesafe import TypeSafeBackend
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import JudgmentResult
+from judgment_base_agent.schema import JudgmentSchema
 
 
 @dataclass(frozen=True)
@@ -1255,7 +1255,7 @@ class JudgmentAgent(BaseAgent):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    model: str = "jev-latest"
+    model: str = "judgment-latest"
     schema_cls: type[JudgmentSchema] | None = None
     questions: Mapping[str, Any] | Callable[..., Mapping[str, Any]] | None = None
     state_keys: Sequence[str] | None = None
@@ -1271,7 +1271,7 @@ class JudgmentAgent(BaseAgent):
         *,
         name: str,
         description: str = "",
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         schema: type[JudgmentSchema] | None = None,
         questions: Mapping[str, Any] | Callable[..., Mapping[str, Any]] | None = None,
         state_keys: Sequence[str] | None = None,
@@ -1426,7 +1426,7 @@ def judgment_node(
     name: str | None = None,
     schema: type[JudgmentSchema] | None = None,
     questions: Mapping[str, Any] | Callable[..., Mapping[str, Any]] | None = None,
-    model: str = "jev-latest",
+    model: str = "judgment-latest",
     state_keys: Sequence[str] | None = None,
     state_builder: Callable[..., Any] | None = None,
     output_key: str | None = None,
@@ -1459,7 +1459,7 @@ Expected: PASS (all 4 tests passing)
 - [ ] **Step 5: Commit Task 3**
 
 ```bash
-git add jev_base_agent/agent.py tests/unit/test_judgment_agent.py
+git add judgment_base_agent/agent.py tests/unit/test_judgment_agent.py
 git commit -m "feat: add JudgmentAgent, JudgmentDecision, and @judgment_node"
 ```
 
@@ -1468,8 +1468,8 @@ git commit -m "feat: add JudgmentAgent, JudgmentDecision, and @judgment_node"
 ### Task 4: Universal Workflow Presets (`JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap` / `JudgmentBatch`), Package Exports (`__init__.py`) & ADK 2.0 Integration Tests
 
 **Files:**
-- Create: `jev_base_agent/presets.py`
-- Create: `jev_base_agent/__init__.py`
+- Create: `judgment_base_agent/presets.py`
+- Create: `judgment_base_agent/__init__.py`
 - Create: `README.md`
 - Test: `tests/unit/test_presets.py`
 - Test: `tests/integration/test_adk_workflows.py`
@@ -1477,10 +1477,10 @@ git commit -m "feat: add JudgmentAgent, JudgmentDecision, and @judgment_node"
 **Interfaces:**
 - Consumes: `JudgmentAgent`, `JudgmentDecision`, `JudgmentSchema`, `Choice`, `Score`, `Noul`, `JudgmentResult`, `BaseJudgmentBackend`, `TypeSafeBackend`
 - Produces:
-  - `JudgmentSwitch` (aliases: `JudgmentRouter`, `SystemOneRouter`, `JevRouter`)
-  - `JudgmentGuard` (aliases: `JudgmentGate`, `SystemOneGate`, `JevGate`)
+  - `JudgmentSwitch` (aliases: `JudgmentRouter`, `SystemOneRouter`, `SystemOneRouter`)
+  - `JudgmentGuard` (aliases: `JudgmentGate`, `SystemOneGate`, `SystemOneGate`)
   - `JudgmentBatchEntry[TItem, TJudgment]`, `JudgmentBatch[TItem, TJudgment]` (`.items()`, `.filter()`, `.rank_by()`, `.map()`, `.all()`, `.any()`, `.reduce()`, `.to_dict()`), `JudgmentMap`
-  - `jev_base_agent.__init__` exporting all primary symbols and aliases (`SystemOneAgent`, `JevAgent`, etc.)
+  - `judgment_base_agent.__init__` exporting all primary symbols and aliases (`SystemOneAgent`, `SystemOneAgent`, etc.)
 
 - [ ] **Step 1: Write the failing unit test `tests/unit/test_presets.py` and integration test `tests/integration/test_adk_workflows.py`**
 
@@ -1493,12 +1493,12 @@ from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from jev_base_agent import (
+from judgment_base_agent import (
     Choice,
     ChoiceJudgment,
-    JevAgent,
-    JevGate,
-    JevRouter,
+    SystemOneAgent,
+    SystemOneGate,
+    SystemOneRouter,
     JudgmentBatch,
     JudgmentField,
     JudgmentGuard,
@@ -1516,10 +1516,10 @@ from jev_base_agent import (
 
 
 def test_aliases_are_identical() -> None:
-    assert SystemOneAgent is JevAgent
+    assert SystemOneAgent is SystemOneAgent
     assert JudgmentRouter is JudgmentSwitch
-    assert JevRouter is JudgmentSwitch
-    assert JevGate is JudgmentGuard
+    assert SystemOneRouter is JudgmentSwitch
+    assert SystemOneGate is JudgmentGuard
 
 
 @pytest.mark.asyncio
@@ -1664,7 +1664,7 @@ from google.adk.runners import InMemoryRunner
 from google.adk.workflow import Workflow
 from google.genai import types
 
-from jev_base_agent import (
+from judgment_base_agent import (
     JudgmentField,
     JudgmentGuard,
     JudgmentMap,
@@ -1784,11 +1784,11 @@ async def test_adk_sequential_and_loop_agent_with_judgment_guard() -> None:
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest tests/unit/test_presets.py tests/integration/test_adk_workflows.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'jev_base_agent.presets'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'judgment_base_agent.presets'`
 
-- [ ] **Step 3: Implement `jev_base_agent/presets.py`, `jev_base_agent/__init__.py`, and `README.md`**
+- [ ] **Step 3: Implement `judgment_base_agent/presets.py`, `judgment_base_agent/__init__.py`, and `README.md`**
 
-Create `jev_base_agent/presets.py`:
+Create `judgment_base_agent/presets.py`:
 ```python
 """Universal workflow presets: JudgmentSwitch, JudgmentGuard, and JudgmentMap (JudgmentBatch)."""
 
@@ -1801,17 +1801,17 @@ from typing import Any, TypeVar
 
 from google.adk.agents import BaseAgent
 
-from jev_base_agent.agent import (
+from judgment_base_agent.agent import (
     JudgmentAgent,
     JudgmentDecision,
     _serialize_output,
     normalize_decision,
 )
-from jev_base_agent.backends.base import BaseJudgmentBackend
-from jev_base_agent.backends.typesafe import TypeSafeBackend
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import Choice, JudgmentResult, Noul
-from jev_base_agent.schema import JudgmentSchema
+from judgment_base_agent.backends.base import BaseJudgmentBackend
+from judgment_base_agent.backends.typesafe import TypeSafeBackend
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import Choice, JudgmentResult, Noul
+from judgment_base_agent.schema import JudgmentSchema
 
 TItem = TypeVar("TItem")
 TJudgment = TypeVar("TJudgment")
@@ -1835,7 +1835,7 @@ class JudgmentSwitch(JudgmentAgent):
         uncertain_route: str = "uncertain",
         route_policy: Callable[[Any, dict[str, Any]], Any] | None = None,
         transfer_to_sub_agent: bool = False,
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         state_keys: Sequence[str] | None = None,
         state_builder: Callable[..., Any] | None = None,
         output_key: str | None = None,
@@ -1914,7 +1914,7 @@ class JudgmentGuard(JudgmentAgent):
         pass_route: str = "pass",
         fail_route: str = "fail",
         escalate_on_pass: bool = True,
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         state_keys: Sequence[str] | None = None,
         state_builder: Callable[..., Any] | None = None,
         output_key: str | None = None,
@@ -2089,7 +2089,7 @@ class JudgmentMap(JudgmentAgent):
         item_state_builder: Callable[[Any, int, dict[str, Any]], Any] | None = None,
         transform: Callable[[JudgmentBatch[Any, Any], dict[str, Any]], Any] | None = None,
         decide: Callable[[JudgmentBatch[Any, Any], dict[str, Any]], Any] | None = None,
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         output_key: str | None = None,
         on_error: Callable[[Exception, dict[str, Any]], JudgmentDecision] | None = None,
         backend: BaseJudgmentBackend | None = None,
@@ -2261,29 +2261,29 @@ class JudgmentMap(JudgmentAgent):
         )
 ```
 
-Create `jev_base_agent/__init__.py`:
+Create `judgment_base_agent/__init__.py`:
 ```python
 """Model-agnostic System One / Judgment primitives for Google ADK workflows."""
 
-from jev_base_agent.agent import JudgmentAgent, JudgmentDecision, judgment_node
-from jev_base_agent.backends import (
+from judgment_base_agent.agent import JudgmentAgent, JudgmentDecision, judgment_node
+from judgment_base_agent.backends import (
     BaseJudgmentBackend,
     MockJudgmentBackend,
     TypeSafeBackend,
 )
-from jev_base_agent.errors import (
+from judgment_base_agent.errors import (
     JudgmentConfigError,
     JudgmentError,
     JudgmentEvaluationError,
 )
-from jev_base_agent.presets import (
+from judgment_base_agent.presets import (
     JudgmentBatch,
     JudgmentBatchEntry,
     JudgmentGuard,
     JudgmentMap,
     JudgmentSwitch,
 )
-from jev_base_agent.primitives import (
+from judgment_base_agent.primitives import (
     Choice,
     ChoiceJudgment,
     ConfidenceTier,
@@ -2295,28 +2295,28 @@ from jev_base_agent.primitives import (
     ScoreJudgment,
     classify_confidence_tier,
 )
-from jev_base_agent.schema import JudgmentField, JudgmentSchema
+from judgment_base_agent.schema import JudgmentField, JudgmentSchema
 
-# Model-agnostic & TypeSafe/Jev aliases
+# Model-agnostic aliases
 SystemOneAgent = JudgmentAgent
-JevAgent = JudgmentAgent
+SystemOneAgent = JudgmentAgent
 
 JudgmentRouter = JudgmentSwitch
 SystemOneRouter = JudgmentSwitch
-JevRouter = JudgmentSwitch
+SystemOneRouter = JudgmentSwitch
 
 JudgmentGate = JudgmentGuard
 SystemOneGate = JudgmentGuard
-JevGate = JudgmentGuard
+SystemOneGate = JudgmentGuard
 
 __all__ = [
     "BaseJudgmentBackend",
     "Choice",
     "ChoiceJudgment",
     "ConfidenceTier",
-    "JevAgent",
-    "JevGate",
-    "JevRouter",
+    "SystemOneAgent",
+    "SystemOneGate",
+    "SystemOneRouter",
     "JudgmentAgent",
     "JudgmentBatch",
     "JudgmentBatchEntry",
@@ -2349,9 +2349,9 @@ __all__ = [
 
 Create `README.md`:
 ```markdown
-# `jev-base-agent` — Calibrated Judgment Primitives for Google ADK
+# `judgment-base-agent` — Calibrated Judgment Primitives for Google ADK
 
-Model-agnostic **System One / Judgment** primitives (`JudgmentAgent`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`) that make adding **Jev (`model="jev-latest"`)** or any calibrated judgment backend to **Google ADK (`google-adk >= 2.7.0`)** workflows effortless.
+Model-agnostic **System One / Judgment** primitives (`JudgmentAgent`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`) that make adding **System One (`model="judgment-latest"`)** or any calibrated judgment backend to **Google ADK (`google-adk >= 2.7.0`)** workflows effortless.
 
 Works identically inside:
 1. **ADK 2.0 Graph `Workflow` (`from google.adk.workflow import Workflow`)** — emitting `Event(output=..., actions=EventActions(route=..., state_delta=...))` and optional `RequestInput` HITL interrupts.
@@ -2360,12 +2360,12 @@ Works identically inside:
 
 - [ ] **Step 4: Run full test suite with coverage check**
 
-Run: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest --cov=jev_base_agent --cov-report=term-missing -v`
+Run: `/usr/local/google/home/mbonnardot/capstone/mbonnardot-medquad-assistant/venv/bin/pytest --cov=judgment_base_agent --cov-report=term-missing -v`
 Expected: All unit and integration tests PASS with `>= 85%` coverage.
 
 - [ ] **Step 5: Commit Task 4**
 
 ```bash
-git add jev_base_agent/presets.py jev_base_agent/__init__.py README.md tests/unit/test_presets.py tests/integration/test_adk_workflows.py
+git add judgment_base_agent/presets.py judgment_base_agent/__init__.py README.md tests/unit/test_presets.py tests/integration/test_adk_workflows.py
 git commit -m "feat: add JudgmentSwitch, JudgmentGuard, JudgmentMap, and ADK 2.0 workflow integration tests"
 ```

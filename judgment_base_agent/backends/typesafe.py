@@ -1,4 +1,4 @@
-"""TypeSafe AI System One (Jev) backend implementation."""
+"""TypeSafe AI System One Judgment backend implementation."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import Any
 
 import typesafe_sdk
 
-from jev_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
-from jev_base_agent.primitives import (
+from judgment_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
+from judgment_base_agent.primitives import (
     Choice,
     ChoiceJudgment,
     JudgmentResult,
@@ -73,12 +73,12 @@ def _question_kind(q: Any) -> str:
 
 
 class TypeSafeBackend:
-    """Judgment backend powered by TypeSafe's AsyncTypeSafeClient (default model: 'jev-latest')."""
+    """Judgment backend powered by TypeSafe's AsyncTypeSafeClient (default model: 'judgment-latest')."""
 
     def __init__(
         self,
         api_key: str | None = None,
-        default_model: str = "jev-latest",
+        default_model: str = "judgment-latest",
         confidence_floor: float = 0.50,
         client: Any | None = None,
     ) -> None:
@@ -119,13 +119,18 @@ class TypeSafeBackend:
                         "TYPESAFE_API_KEY environment variable or explicit api_key is required "
                         "to evaluate questions with TypeSafeBackend."
                     )
+                sdk_model = (
+                    typesafe_sdk.constants.DEFAULT_MODEL
+                    if target_model in ("judgment-latest", "system-one")
+                    else target_model
+                )
                 async with typesafe_sdk.AsyncTypeSafeClient(
                     api_key=resolved_key
                 ) as live_client:
                     response = await live_client.system_one(
                         state=state,
                         questions=sdk_questions,
-                        model=target_model,
+                        model=sdk_model,
                     )
         except JudgmentConfigError:
             raise

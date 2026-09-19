@@ -1,4 +1,4 @@
-"""Custom exception hierarchy for jev_base_agent."""
+"""Custom exception hierarchy for judgment_base_agent."""
 
 from __future__ import annotations
 

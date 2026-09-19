@@ -9,17 +9,17 @@ from typing import Any, Generic, TypeVar
 
 from google.adk.agents import BaseAgent
 
-from jev_base_agent.agent import (
+from judgment_base_agent.agent import (
     JudgmentAgent,
     JudgmentDecision,
     _serialize_output,
     normalize_decision,
 )
-from jev_base_agent.backends.base import BaseJudgmentBackend
-from jev_base_agent.backends.typesafe import TypeSafeBackend
-from jev_base_agent.errors import JudgmentConfigError
-from jev_base_agent.primitives import Choice, JudgmentResult, Noul
-from jev_base_agent.schema import JudgmentSchema
+from judgment_base_agent.backends.base import BaseJudgmentBackend
+from judgment_base_agent.backends.typesafe import TypeSafeBackend
+from judgment_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.primitives import Choice, JudgmentResult, Noul
+from judgment_base_agent.schema import JudgmentSchema
 
 TItem = TypeVar("TItem")
 TJudgment = TypeVar("TJudgment")
@@ -44,7 +44,7 @@ class JudgmentSwitch(JudgmentAgent):
         uncertain_route: str = "uncertain",
         route_policy: Callable[[Any, dict[str, Any]], Any] | None = None,
         transfer_to_sub_agent: bool = False,
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         state_keys: Sequence[str] | None = None,
         state_builder: Callable[..., Any] | None = None,
         output_key: str | None = None,
@@ -125,7 +125,7 @@ class JudgmentGuard(JudgmentAgent):
         pass_route: str = "pass",
         fail_route: str = "fail",
         escalate_on_pass: bool = True,
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         state_keys: Sequence[str] | None = None,
         state_builder: Callable[..., Any] | None = None,
         output_key: str | None = None,
@@ -337,7 +337,7 @@ class JudgmentMap(JudgmentAgent):
         context_keys: Sequence[str] | None = None,
         transform: Callable[..., Any] | None = None,
         decide: Callable[[JudgmentBatch[Any, Any], dict[str, Any]], Any] | None = None,
-        model: str = "jev-latest",
+        model: str = "judgment-latest",
         output_key: str | None = None,
         on_error: Callable[[Exception, dict[str, Any]], JudgmentDecision] | None = None,
         backend: BaseJudgmentBackend | None = None,

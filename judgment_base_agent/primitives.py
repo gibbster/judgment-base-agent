@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from jev_base_agent.errors import JudgmentConfigError
+from judgment_base_agent.errors import JudgmentConfigError
 
 ConfidenceTier = Literal["high", "medium", "low"]
 
@@ -175,7 +175,7 @@ class JudgmentResult(BaseModel):
     choices: dict[str, ChoiceJudgment] = Field(default_factory=dict)
     scores: dict[str, ScoreJudgment] = Field(default_factory=dict)
     nouls: dict[str, NoulJudgment] = Field(default_factory=dict)
-    model: str = "jev-latest"
+    model: str = "judgment-latest"
     usage: JudgmentUsage | None = None
 
     def get(self, key: str) -> ChoiceJudgment | ScoreJudgment | NoulJudgment:

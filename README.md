@@ -7,7 +7,7 @@
 [![TypeSafe SDK](https://img.shields.io/badge/typesafe--sdk-%3E%3D0.2.0-0F172A.svg)](https://github.com/typesafe-ai)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)](#testing--verification)
 
-`judgment-base-agent` is a model-agnostic Python library that integrates calibrated **System One / Judgment models** (such as `model="jev-latest"` via the TypeSafe SDK) directly into **Google ADK (`google-adk >= 2.7.0`)** applications.
+`judgment-base-agent` is a model-agnostic Python library that integrates calibrated **System One / Judgment models** (such as `model="judgment-latest"` via the TypeSafe SDK) directly into **Google ADK (`google-adk >= 2.7.0`)** applications.
 
 It provides production-ready `BaseAgent` primitives—**`JudgmentAgent`**, **`JudgmentSwitch`**, **`JudgmentGuard`**, and **`JudgmentMap`**—designed to replace fragile, multi-turn LLM prompt-parsing with fast, single-call, confidence-calibrated evaluations across both **ADK 2.0 Graph `Workflow`s** and **ADK Composite Agents** (`SequentialAgent`, `ParallelAgent`, `LoopAgent`).
 
@@ -67,7 +67,7 @@ Every `judgment-base-agent` primitive subclasses `google.adk.agents.BaseAgent` a
 | **Code Owns the Workflow** | Models return typed values and calibrated probabilities (`0.0–1.0`). User-supplied Python functions (`decide`, `route_policy`, `predicate`, `transform`) own all branching, state mutation, and escalation decisions. |
 | **Single-Call Batching** | Whether evaluating a 5-field `JudgmentSchema` or scoring 25 candidate items via `JudgmentMap`, all questions are compiled into a **single batched backend call**. |
 | **Immutable Data Contracts** | All question definitions (`Noul`, `Kat`, `Skala`, `Nom`), result envelopes (`JudgmentAnswer`, `JudgmentResult`), decisions (`JudgmentDecision`), and batch containers (`JudgmentBatch`) are strictly immutable (`frozen=True`). |
-| **Model-Agnostic Extensibility** | All primitives depend on the `@runtime_checkable` `BaseJudgmentBackend` protocol. Use `TypeSafeBackend` (`model="jev-latest"`) in production, `MockJudgmentBackend` in CI/CD, or plug in a custom calibration backend. |
+| **Model-Agnostic Extensibility** | All primitives depend on the `@runtime_checkable` `BaseJudgmentBackend` protocol. Use `TypeSafeBackend` (`model="judgment-latest"`) in production, `MockJudgmentBackend` in CI/CD, or plug in a custom calibration backend. |
 
 ---
 
@@ -103,7 +103,7 @@ export TYPESAFE_API_KEY="ts_live_..."
 
 ### Question Primitives
 
-All question primitives are imported from `judgment_base_agent` (or alias `jev_base_agent`) and validated at construction time:
+All question primitives are imported from `judgment_base_agent` (or alias `judgment_base_agent`) and validated at construction time:
 
 | Primitive | Signature | Output Type | Confidence | Constraints & Behavior |
 | :--- | :--- | :---: | :---: | :--- |
@@ -130,13 +130,13 @@ Every `JudgmentAnswer`, `JudgmentResult`, and `JudgmentSchema` instance computes
 
 ### Agent Primitives & Aliases
 
-`judgment-base-agent` exports model-agnostic primary classes alongside domain-specific aliases (`SystemOne*`, `Jev*`) for team ergonomics:
+`judgment-base-agent` exports model-agnostic primary classes alongside domain-specific aliases (`SystemOne*`) for team ergonomics:
 
-| Primary Class | SystemOne Alias | Jev Alias | Role |
+| Primary Class | SystemOne Alias | Role |
 | :--- | :--- | :--- | :--- |
-| **`JudgmentAgent`** | `SystemOneAgent` | `JevAgent` | Core `BaseAgent` executing a `JudgmentSchema` or question dictionary and invoking `decide`. |
-| **`JudgmentSwitch`** | `SystemOneRouter` (`JudgmentRouter`) | `JevRouter` | Multi-branch conditional router with built-in `confidence_floor` and `uncertain_route` fallback. |
-| **`JudgmentGuard`** | `SystemOneGate` (`JudgmentGate`) | `JevGate` | Binary assertion/verification gate supporting `LoopAgent` termination (`escalate_on_pass=True`). |
+| **`JudgmentAgent`** | `SystemOneAgent` | `SystemOneAgent` | Core `BaseAgent` executing a `JudgmentSchema` or question dictionary and invoking `decide`. |
+| **`JudgmentSwitch`** | `SystemOneRouter` (`JudgmentRouter`) | `SystemOneRouter` | Multi-branch conditional router with built-in `confidence_floor` and `uncertain_route` fallback. |
+| **`JudgmentGuard`** | `SystemOneGate` (`JudgmentGate`) | `SystemOneGate` | Binary assertion/verification gate supporting `LoopAgent` termination (`escalate_on_pass=True`). |
 | **`JudgmentMap`** | — | — | Batched collection operator evaluating an `item_schema` across `N` items in a single backend call. |
 | **`@judgment_node`** | — | — | Decorator transforming a typed Python policy function (`(Schema) -> JudgmentDecision`) into a `JudgmentAgent`. |
 
@@ -425,10 +425,10 @@ Open **`http://localhost:8000`** and select any of the 4 applications from the t
 
 | Application (`examples/`) | Core Primitive | Architecture & Enterprise Use Case |
 | :--- | :--- | :--- |
-| **`tool_execution_firewall`** | `JudgmentAgent` + `JudgmentSchema` (`Choice`, `Noul`, `Score`) | **Pre-Execution Blast-Radius & Policy Firewall:** Intercepts proposed SQL/API/wire-transfer tool payloads before execution, evaluates blast radius, policy compliance, and risk exposure in a single Jev call, and deterministically blocks or allows execution. |
+| **`tool_execution_firewall`** | `JudgmentAgent` + `JudgmentSchema` (`Choice`, `Noul`, `Score`) | **Pre-Execution Blast-Radius & Policy Firewall:** Intercepts proposed SQL/API/wire-transfer tool payloads before execution, evaluates blast radius, policy compliance, and risk exposure in a single Judgment call, and deterministically blocks or allows execution. |
 | **`clinical_claims_router`** | `JudgmentSwitch` (`confidence_floor=0.75`) | **Regulated Prior-Authorization Triage (`ADK 2.0 Workflow`):** Routes clinical prior-authorization requests across auto-adjudication, MD peer review, and SIU fraud audit—automatically falling back to `human_clinical_intake` whenever calibrated confidence drops below `0.75`. |
 | **`zero_hallucination_rag_loop`** | `JudgmentGuard` (`threshold=0.88`, `escalate_on_pass=True`) | **Self-Healing Covenant & Legal Synthesis (`LoopAgent`):** Iteratively drafts a legal/financial credit memorandum from primary M&A clauses and gates release on calibrated NLI entailment (`>= 0.88`), forcing self-correction until every number and exception is verified. |
-| **`security_rfp_evidence_matrix`** | `JudgmentMap` + `JudgmentBatch` | **Single-Call InfoSec RFP Evidence Curation:** Evaluates an entire vault of candidate security artifacts in **one** batched `jev-latest` call, filters out DLP-unsafe internal runbooks (`safe_for_external_sharing < 0.80`), and ranks approved SOC2/cryptographic specs by authority score. |
+| **`security_rfp_evidence_matrix`** | `JudgmentMap` + `JudgmentBatch` | **Single-Call InfoSec RFP Evidence Curation:** Evaluates an entire vault of candidate security artifacts in **one** batched `judgment-latest` call, filters out DLP-unsafe internal runbooks (`safe_for_external_sharing < 0.80`), and ranks approved SOC2/cryptographic specs by authority score. |
 
 ### Sample Prompts to Try in `adk web examples`
 
@@ -451,7 +451,7 @@ Open **`http://localhost:8000`** and select any of the 4 applications from the t
 judgment-base-agent/
 ├── judgment_base_agent/
 │   └── __init__.py                        # Primary model-agnostic package entrypoint
-├── jev_base_agent/
+├── judgment_base_agent/
 │   ├── __init__.py                        # Core implementation & public exports
 │   ├── agent.py                           # JudgmentAgent(BaseAgent), JudgmentDecision, @judgment_node
 │   ├── errors.py                          # JudgmentError hierarchy
@@ -462,7 +462,7 @@ judgment-base-agent/
 │       ├── __init__.py
 │       ├── base.py                        # BaseJudgmentBackend Protocol
 │       ├── mock.py                        # Deterministic MockJudgmentBackend
-│       └── typesafe.py                    # AsyncTypeSafe (model="jev-latest") adapter
+│       └── typesafe.py                    # AsyncTypeSafe (model="judgment-latest") adapter
 ├── examples/                              # Interactive `adk web examples` showcase suite
 │   ├── tool_execution_firewall/           # JudgmentAgent + JudgmentSchema pre-execution firewall
 │   ├── clinical_claims_router/            # ADK 2.0 Graph Workflow + JudgmentSwitch router
@@ -481,7 +481,7 @@ judgment-base-agent/
 Run the complete unit and ADK integration test suite with coverage reporting:
 
 ```bash
-pytest --cov=jev_base_agent --cov=judgment_base_agent --cov-report=term-missing -v
+pytest --cov=judgment_base_agent --cov=judgment_base_agent --cov-report=term-missing -v
 ```
 
-Current test coverage across `judgment_base_agent` / `jev_base_agent` is **97%** (`25/25` tests passing).
+Current test coverage across `judgment_base_agent` / `judgment_base_agent` is **97%** (`25/25` tests passing).

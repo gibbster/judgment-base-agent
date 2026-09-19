@@ -1,4 +1,4 @@
-# ADK Judgment Primitives (`jev-base-agent`) Design Specification
+# ADK Judgment Primitives (`judgment-base-agent`) Design Specification
 
 **Date:** 2026-09-19  
 **Status:** Draft (Awaiting User Review)  
@@ -10,7 +10,7 @@
 
 Modern AI workflows built with **Google ADK** combine two distinct cognitive modes:
 - **System 2 (Slow / Generative Reasoning):** Handled by ADK's `LlmAgent` (`model="gemini-3.8-flash"`, etc.), which generates free-form text, reasons across turns, and invokes tools. However, using `output_schema` on `LlmAgent` disables tool calling and delegation, incurs full generative latency, and produces no calibrated probabilities.
-- **System 1 (Fast / Calibrated Judgment):** Handled by System One models such as **Jev** (`model="jev-latest"`), which evaluate application state against constrained primitives (`Choice`, `Score`, `Noul`) in parallel and return typed answers with calibrated probability distributions and confidence scores.
+- **System 1 (Fast / Calibrated Judgment):** Handled by System One models such as **System One** (`model="judgment-latest"`), which evaluate application state against constrained primitives (`Choice`, `Score`, `Noul`) in parallel and return typed answers with calibrated probability distributions and confidence scores.
 
 Following TypeSafe's core principle — *"Code owns the workflow; the model supplies programmable common sense where ordinary code needs semantic understanding"* — this library provides **model-agnostic judgment primitives** (`JudgmentAgent`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`) that work natively as first-class steps inside **both**:
 1. **ADK 2.0 Graph `Workflow` (`from google.adk.workflow import Workflow`)** — emitting `Event(output=..., actions=EventActions(route=..., state_delta=...))` and optional `RequestInput` interrupts for Human-in-the-Loop (HITL).
@@ -21,15 +21,15 @@ Following TypeSafe's core principle — *"Code owns the workflow; the model supp
 ## 2. Package Architecture & Module Structure
 
 ```text
-jev_base_agent/
-├── __init__.py           # Public API exports + aliases (JudgmentAgent, SystemOneAgent, JevAgent, ...)
+judgment_base_agent/
+├── __init__.py           # Public API exports + aliases (JudgmentAgent, SystemOneAgent, SystemOneAgent, ...)
 ├── errors.py             # Custom exceptions (JudgmentConfigError, JudgmentEvaluationError)
 ├── primitives.py         # Model-agnostic question & answer models (Choice, Score, Noul, JudgmentResult, ...)
 ├── schema.py             # Declarative JudgmentSchema & JudgmentField for typed IDE-autocompleted outputs
 ├── backends/
 │   ├── __init__.py
 │   ├── base.py           # BaseJudgmentBackend Protocol
-│   ├── typesafe.py       # TypeSafeBackend (default model="jev-latest" via AsyncTypeSafeClient)
+│   ├── typesafe.py       # TypeSafeBackend (default model="judgment-latest" via AsyncTypeSafeClient)
 │   └── mock.py           # MockJudgmentBackend for deterministic, zero-network unit testing
 ├── agent.py              # Core JudgmentAgent(BaseAgent), JudgmentDecision, and @judgment_node decorator
 └── presets.py            # Universal workflow primitives: JudgmentSwitch, JudgmentGuard, JudgmentMap, JudgmentBatch
@@ -38,9 +38,9 @@ jev_base_agent/
 ### Naming & Model-Agnostic Aliases
 - **Primary Names:** `JudgmentAgent`, `JudgmentSchema`, `JudgmentField`, `JudgmentDecision`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`, `JudgmentBatch`, `@judgment_node`.
 - **Aliases Exported in `__init__.py`:**
-  - `SystemOneAgent = JudgmentAgent`, `JevAgent = JudgmentAgent`
-  - `JudgmentRouter = JudgmentSwitch`, `SystemOneRouter = JudgmentSwitch`, `JevRouter = JudgmentSwitch`
-  - `JudgmentGate = JudgmentGuard`, `SystemOneGate = JudgmentGuard`, `JevGate = JudgmentGuard`
+  - `SystemOneAgent = JudgmentAgent`, `SystemOneAgent = JudgmentAgent`
+  - `JudgmentRouter = JudgmentSwitch`, `SystemOneRouter = JudgmentSwitch`, `SystemOneRouter = JudgmentSwitch`
+  - `JudgmentGate = JudgmentGuard`, `SystemOneGate = JudgmentGuard`, `SystemOneGate = JudgmentGuard`
 
 ---
 
@@ -99,7 +99,7 @@ class JudgmentResult(BaseModel):
     choices: dict[str, ChoiceJudgment] = Field(default_factory=dict)
     scores: dict[str, ScoreJudgment] = Field(default_factory=dict)
     nouls: dict[str, NoulJudgment] = Field(default_factory=dict)
-    model: str = "jev-latest"
+    model: str = "judgment-latest"
     usage: JudgmentUsage | None = None
 
     def get(self, key: str) -> ChoiceJudgment | ScoreJudgment | NoulJudgment: ...
@@ -120,7 +120,7 @@ class BaseJudgmentBackend(Protocol):
     ) -> JudgmentResult:
         ...
 ```
-- **`TypeSafeBackend`**: Uses `typesafe_sdk.AsyncTypeSafeClient` (reading `TYPESAFE_API_KEY` from env or constructor argument, defaulting `model="jev-latest"`). Converts `Choice`, `Score`, and `Noul` objects to `typesafe_sdk` primitives, executes `client.system_one(state=state, questions=questions, model=model)`, and normalizes both `response.answers` and `response.choices`/`scores`/`nouls` into `JudgmentResult`.
+- **`TypeSafeBackend`**: Uses `typesafe_sdk.AsyncTypeSafeClient` (reading `TYPESAFE_API_KEY` from env or constructor argument, defaulting `model="judgment-latest"`). Converts `Choice`, `Score`, and `Noul` objects to `typesafe_sdk` primitives, executes `client.system_one(state=state, questions=questions, model=model)`, and normalizes both `response.answers` and `response.choices`/`scores`/`nouls` into `JudgmentResult`.
 - **`MockJudgmentBackend`**: Accepts either a static mapping of question keys to answers or a callable `(state, questions, model) -> dict[str, Any]`, enabling 100% offline deterministic testing of ADK workflows.
 
 ---
@@ -218,7 +218,7 @@ class JudgmentDecision:
 
 All presets inherit from `JudgmentAgent` (`BaseAgent`) so they work identically in ADK 2.0 `Workflow` graphs and `SequentialAgent` / `LoopAgent` pipelines.
 
-### 6.1 `JudgmentSwitch` (Aliases: `JudgmentRouter`, `SystemOneRouter`, `JevRouter`)
+### 6.1 `JudgmentSwitch` (Aliases: `JudgmentRouter`, `SystemOneRouter`, `SystemOneRouter`)
 Multi-way semantic branching (`switch` / `match` or multi-branch fan-out):
 - **Inputs:**
   - `instructions: str` and `routes: Mapping[str, str | None] | Sequence[str]` (constructs a primary `Choice` question under key `"route"`), OR a `schema` / `questions` dict for multi-factor routing.
@@ -229,7 +229,7 @@ Multi-way semantic branching (`switch` / `match` or multi-branch fan-out):
   - If `route_policy` is provided, delegates routing decision to `route_policy(result, state)`.
   - Otherwise, selects `choice = result.choice("route")`; if `confidence_floor` is set and `result.confidence("route") < confidence_floor`, routes to `uncertain_route`; else routes to `choice` (and sets `transfer_to_agent=choice` if matching sub-agent exists in `self.sub_agents`).
 
-### 6.2 `JudgmentGuard` (Aliases: `JudgmentGate`, `SystemOneGate`, `JevGate`)
+### 6.2 `JudgmentGuard` (Aliases: `JudgmentGate`, `SystemOneGate`, `SystemOneGate`)
 Semantic assertion, guardrail, and loop-termination gate (`if` / `while`):
 - **Inputs:**
   - `schema: type[JudgmentSchema] | None` or `questions: Mapping[str, Any] | Callable` (or single `instructions: str` shorthand creating a `Noul` question `"guard"`).
@@ -275,7 +275,7 @@ Universal collection primitive (**Map / Filter / Rank / Reduce**) that evaluates
 
 ## 8. Testing & Verification Plan
 
-- **Minimum Test Coverage:** `>= 85%` across all modules (`pytest --cov=jev_base_agent --cov-report=term-missing`).
+- **Minimum Test Coverage:** `>= 85%` across all modules (`pytest --cov=judgment_base_agent --cov-report=term-missing`).
 - **Unit Tests (`tests/unit/`):**
   - `test_primitives_and_schema.py`: Validation, immutability, confidence tier calculation, `JudgmentSchema.build_questions()` and `from_result()`.
   - `test_backends.py`: `TypeSafeBackend` conversion & response extraction (`answers` and `choices`/`scores`/`nouls` compatibility), `MockJudgmentBackend`, missing API key handling.

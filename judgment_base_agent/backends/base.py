@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from jev_base_agent.primitives import JudgmentResult
+from judgment_base_agent.primitives import JudgmentResult
 
 
 @runtime_checkable

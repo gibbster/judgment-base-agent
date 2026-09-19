@@ -24,17 +24,17 @@ from google.adk.events.request_input import RequestInput
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from jev_base_agent.agent import (
+from judgment_base_agent.agent import (
     JudgmentAgent,
     JudgmentDecision,
     _extract_node_input,
     judgment_node,
     normalize_decision,
 )
-from jev_base_agent.backends.mock import MockJudgmentBackend
-from jev_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
-from jev_base_agent.primitives import Choice, ChoiceJudgment, Noul, NoulJudgment
-from jev_base_agent.schema import JudgmentField, JudgmentSchema
+from judgment_base_agent.backends.mock import MockJudgmentBackend
+from judgment_base_agent.errors import JudgmentConfigError, JudgmentEvaluationError
+from judgment_base_agent.primitives import Choice, ChoiceJudgment, Noul, NoulJudgment
+from judgment_base_agent.schema import JudgmentField, JudgmentSchema
 
 
 class TriageSchema(JudgmentSchema):

@@ -3,7 +3,7 @@
 Demonstrates `JudgmentGuard` (`threshold=0.88`, `escalate_on_pass=True`) inside an
 ADK `LoopAgent(max_iterations=3)`. A Gemini analyst drafts an executive brief against
 authoritative credit-facility covenants, and `JudgmentGuard` audits strict numerical
-and citation grounding with Jev. If grounding probability < 0.88, the loop continues;
+and citation grounding with Judgment. If grounding probability < 0.88, the loop continues;
 as soon as grounding probability >= 0.88, `JudgmentGuard` emits `escalate=True` to
 terminate the `LoopAgent` and release the verified brief.
 """
@@ -11,6 +11,7 @@ terminate the `LoopAgent` and release the verified brief.
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,9 @@ from typing import Any
 from dotenv import load_dotenv
 from google.adk.agents import BaseAgent, LlmAgent, LoopAgent, SequentialAgent
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 from google.adk.agents.invocation_context import InvocationContext
@@ -97,7 +101,7 @@ memo_drafter = LlmAgent(
 
 grounding_guard = JudgmentGuard(
     name="grounding_guard",
-    description="Audits numerical fidelity and section grounding with Jev (threshold=0.88, escalate_on_pass=True).",
+    description="Audits numerical fidelity and section grounding with Judgment (threshold=0.88, escalate_on_pass=True).",
     instructions=(
         "Is every financial ratio, dollar threshold, business-day deadline, and section citation "
         "in `draft_covenant_memo` 100% supported by `source_covenant_vault` with zero hallucinated terms?"

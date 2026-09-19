@@ -21,8 +21,11 @@ dev = [
     "pytest-cov>=5.0.0",
 ]
 
+[tool.setuptools.packages.find]
+include = ["judgment_base_agent*"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["judgment_base_agent", "jev_base_agent"]
+packages = ["judgment_base_agent"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
