@@ -7,9 +7,15 @@ before allowing autonomous execution or escalating to SecOps / Dual-Control appr
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from google.adk.agents import LlmAgent, SequentialAgent
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 
 from judgment_base_agent import (
     Choice,
@@ -116,24 +122,34 @@ action_firewall_evaluator = JudgmentAgent(
     decide=firewall_policy,
 )
 
-execution_controller = LlmAgent(
-    name="execution_controller",
-    model="gemini-2.5-flash",
-    description="Executes the action if cleared by the calibrated firewall, or prepares the SecOps/CFO escalation brief.",
+action_planner = LlmAgent(
+    name="action_planner",
+    model=GEMINI_MODEL,
     instruction=(
-        "You are the Enterprise Tool Execution Controller.\n"
-        "Review the calibrated System One Firewall Assessment stored in session state:\n"
-        "- Firewall Verdict: {firewall_verdict}\n"
-        "- Calibrated Telemetry: {firewall_telemetry}\n\n"
-        "Respond with a structured markdown report containing:\n"
-        "1. **Firewall Verdict Banner** (`ALLOW_AUTONOMOUS_EXECUTION`, `REQUIRE_DUAL_CONTROL_APPROVAL`, or `BLOCK_AND_ESCALATE_SECOPS`)\n"
-        "2. **Calibrated Jev Telemetry** (Blast Radius + Confidence, Policy Compliance Probability + Tier, Risk Exposure Level)\n"
-        "3. **Operational Action Taken** (Either confirmation of autonomous execution or the exact remediation/sign-off required to unblock)."
+        "You are an autonomous enterprise operations planner. Given the user's request, "
+        "draft the exact tool invocation payload (SQL query, REST API call, wire transfer "
+        "instruction, or IAM change) that would fulfill the request. Output ONLY the proposed "
+        "tool payload and its operational justification."
     ),
+    output_key="proposed_action_payload",
+)
+
+execution_dispatcher = LlmAgent(
+    name="execution_dispatcher",
+    model=GEMINI_MODEL,
+    instruction=(
+        "You are the enterprise execution dispatcher. Review the proposed action in "
+        "{proposed_action_payload} and the calibrated Jev firewall decision in "
+        "{firewall_telemetry} (verdict: {firewall_verdict}).\n"
+        "- If verdict is ALLOW_AUTONOMOUS_EXECUTION, confirm execution and summarize the result.\n"
+        "- If verdict is REQUIRE_DUAL_CONTROL_APPROVAL, generate a dual-control approval ticket with the calibrated probabilities.\n"
+        "- If verdict is BLOCKED_FOR_VP_APPROVAL, halt execution immediately and present the calibrated blast-radius and exposure telemetry."
+    ),
+    output_key="final_dispatch_report",
 )
 
 root_agent = SequentialAgent(
     name="tool_execution_firewall",
     description="Pre-execution blast-radius and policy compliance firewall powered by JudgmentAgent.",
-    sub_agents=[action_firewall_evaluator, execution_controller],
+    sub_agents=[action_planner, action_firewall_evaluator, execution_dispatcher],
 )

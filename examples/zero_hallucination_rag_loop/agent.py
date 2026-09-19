@@ -10,10 +10,16 @@ terminate the `LoopAgent` and release the verified brief.
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from google.adk.agents import BaseAgent, LlmAgent, LoopAgent, SequentialAgent
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types
@@ -75,7 +81,7 @@ covenant_vault_seeder = CovenantVaultSeeder(
 
 memo_drafter = LlmAgent(
     name="memo_drafter",
-    model="gemini-2.5-flash",
+    model=GEMINI_MODEL,
     description="Drafts or refines an executive covenant memo grounded strictly in Schedule 7.1.",
     output_key="draft_covenant_memo",
     instruction=(

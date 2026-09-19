@@ -8,10 +8,14 @@ clinical intake specialist rather than risking an uncalibrated automated adjudic
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from google.adk.apps import App
-from google.adk.workflow import START, Workflow
+from google.adk.workflow import START, Workflow, node
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from judgment_base_agent import JudgmentSwitch
 

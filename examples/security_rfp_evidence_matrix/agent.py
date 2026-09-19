@@ -9,10 +9,16 @@ controls before synthesizing the final RFP response.
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types
@@ -198,7 +204,7 @@ evidence_matrix_map = JudgmentMap(
 
 rfp_response_synthesizer = LlmAgent(
     name="rfp_response_synthesizer",
-    model="gemini-2.5-flash",
+    model=GEMINI_MODEL,
     description="Synthesizes a customer-ready security questionnaire response from the DLP-cleared evidence matrix.",
     instruction=(
         "You are a Principal Security & Deal-Desk Engineer.\n"
