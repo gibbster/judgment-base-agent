@@ -1,4 +1,4 @@
-# `jev-base-agent`
+# `judgment base agent`
 
 **Calibrated System One / Judgment Primitives for Google ADK (`google-adk >= 2.7.0`)**
 
