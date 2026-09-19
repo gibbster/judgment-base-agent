@@ -67,11 +67,15 @@ class Noul:
     """Calibrated binary probability judgment in [0.0, 1.0]."""
 
     instructions: str
-    criteria: Mapping[str, str] | None = None
+    criteria: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not (self.instructions or "").strip():
             raise JudgmentConfigError("Noul.instructions must be a non-empty string.")
+        if self.criteria is not None:
+            raw = dict(self.criteria)
+            if not set(raw.keys()).issubset({"true", "false"}):
+                object.__setattr__(self, "criteria", {"true": raw})
 
 
 class ChoiceJudgment(BaseModel):

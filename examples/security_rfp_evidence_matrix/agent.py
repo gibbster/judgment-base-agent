@@ -93,7 +93,8 @@ class ArtifactAuditSchema(JudgmentSchema):
         Noul(
             instructions="Is this artifact safe to share with an external enterprise prospect (free of internal private IPs, break-glass credentials, or secrets)?",
             criteria={
-                "no_secrets": "Contains zero hardcoded tokens, bypass keys, or internal-only jumpbox IPs",
+                "true": "Contains zero hardcoded tokens, bypass keys, or internal-only jumpbox IPs; safe for customer sharing",
+                "false": "Contains internal jumpbox IPs, break-glass credentials, secret tokens, or internal-only incident runbooks",
             },
         )
     )

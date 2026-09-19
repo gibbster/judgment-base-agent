@@ -107,8 +107,8 @@ grounding_guard = JudgmentGuard(
         "in `draft_covenant_memo` 100% supported by `source_covenant_vault` with zero hallucinated terms?"
     ),
     criteria={
-        "numerical_fidelity": "Every ratio (3.25x / 3.75x), dollar figure ($15M / $25M), and day count (10 / 15 business days) matches Schedule 7.1",
-        "zero_speculation": "Contains no unverified legal interpretations or external assumptions",
+        "true": "Every ratio (3.25x / 3.75x), dollar figure ($15M / $25M), and day count (10 / 15 business days) matches Schedule 7.1 with zero unverified speculation",
+        "false": "Contains any fabricated number, altered ratio, wrong day count, or unsupported legal claim",
     },
     threshold=0.88,
     escalate_on_pass=True,

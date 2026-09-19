@@ -53,8 +53,8 @@ class ActionRiskSchema(JudgmentSchema):
         Noul(
             instructions="Does the proposed action satisfy enterprise authorization, ticket reference, and dual-control policies?",
             criteria={
-                "ticket_and_scope": "Includes an approved change/incident ticket and bounded scope",
-                "dual_control": "High-value financial or production-critical mutations include explicit secondary sign-off",
+                "true": "Includes an approved change/incident ticket, bounded scope, and secondary sign-off for high-value or production mutations",
+                "false": "Missing approved change ticket, unbounded scope, or waives dual-control authorization",
             },
         )
     )
