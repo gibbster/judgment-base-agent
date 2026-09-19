@@ -156,6 +156,17 @@ async def test_typesafe_backend_conversion_and_error_handling() -> None:
     n_dict = _to_typesafe_question({"type": "noul", "instructions": "Yes?"})
     assert isinstance(n_dict, typesafe_sdk.Noul)
 
+    n_custom_criteria = _to_typesafe_question(
+        Noul(
+            instructions="Compliant?",
+            criteria={"ticket_and_scope": "Has ticket", "least_privilege": "Bounded"},
+        )
+    )
+    assert isinstance(n_custom_criteria, typesafe_sdk.Noul)
+    assert n_custom_criteria.criteria == {
+        "true": {"ticket_and_scope": "Has ticket", "least_privilege": "Bounded"}
+    }
+
     assert _question_kind({"type": "choice"}) == "choice"
     assert _question_kind(object()) == "unknown"
 

@@ -21,6 +21,18 @@ from judgment_base_agent.primitives import (
 )
 
 
+def _normalize_noul_criteria(
+    criteria: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Normalize Noul criteria into typesafe_sdk NoulCriteria ({'true': ..., 'false': ...})."""
+    if not criteria:
+        return None
+    raw = dict(criteria)
+    if set(raw.keys()).issubset({"true", "false"}):
+        return raw
+    return {"true": raw}
+
+
 def _to_typesafe_question(q: Any) -> Any:
     """Convert model-agnostic Choice/Score/Noul or dict into typesafe_sdk question objects."""
     if isinstance(q, (typesafe_sdk.Choice, typesafe_sdk.Score, typesafe_sdk.Noul)):
@@ -38,7 +50,7 @@ def _to_typesafe_question(q: Any) -> Any:
     if isinstance(q, Noul):
         return typesafe_sdk.Noul(
             instructions=q.instructions,
-            criteria=dict(q.criteria) if q.criteria else None,
+            criteria=_normalize_noul_criteria(q.criteria),
         )
     if isinstance(q, Mapping):
         q_type = str(q.get("type", "")).lower()
@@ -55,7 +67,7 @@ def _to_typesafe_question(q: Any) -> Any:
         if q_type == "noul":
             return typesafe_sdk.Noul(
                 instructions=str(q["instructions"]),
-                criteria=q.get("criteria"),
+                criteria=_normalize_noul_criteria(q.get("criteria")),
             )
     raise JudgmentConfigError(f"Unsupported question primitive type: {type(q)!r}")
 
