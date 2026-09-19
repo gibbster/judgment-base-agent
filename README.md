@@ -1,4 +1,4 @@
-# `judgment base agent`
+# `judgment-base-agent`
 
 **Calibrated Judgment & Control-Flow Primitives for Google Agent Development Kit (ADK)**
 
@@ -7,7 +7,7 @@
 [![TypeSafe SDK](https://img.shields.io/badge/typesafe--sdk-%3E%3D0.2.0-0F172A.svg)](https://github.com/typesafe-ai)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)](#testing--verification)
 
-`jev-base-agent` is a model-agnostic Python library that integrates calibrated **System One / Judgment models** (such as `model="jev-latest"` via the TypeSafe SDK) directly into **Google ADK (`google-adk >= 2.7.0`)** applications.
+`judgment-base-agent` is a model-agnostic Python library that integrates calibrated **System One / Judgment models** (such as `model="jev-latest"` via the TypeSafe SDK) directly into **Google ADK (`google-adk >= 2.7.0`)** applications.
 
 It provides production-ready `BaseAgent` primitives—**`JudgmentAgent`**, **`JudgmentSwitch`**, **`JudgmentGuard`**, and **`JudgmentMap`**—designed to replace fragile, multi-turn LLM prompt-parsing with fast, single-call, confidence-calibrated evaluations across both **ADK 2.0 Graph `Workflow`s** and **ADK Composite Agents** (`SequentialAgent`, `ParallelAgent`, `LoopAgent`).
 
@@ -43,7 +43,7 @@ In multi-agent systems, routing, guardrails, loop termination, and candidate rer
 2. **Latency & Token Overhead:** Evaluating multiple criteria or scoring a list of `N` retrieved documents often triggers `N` sequential LLM calls.
 3. **Control-Flow Coupling:** Prompt logic and routing rules become entangled inside natural-language instructions rather than testable Python code.
 
-`jev-base-agent` resolves these challenges by separating **calibrated judgment inference** from **deterministic workflow policy**:
+`judgment-base-agent` resolves these challenges by separating **calibrated judgment inference** from **deterministic workflow policy**:
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ flowchart LR
     Policy --> Event["ADK Event\n(output + EventActions)"]
 ```
 
-Every `jev-base-agent` primitive subclasses `google.adk.agents.BaseAgent` and emits unified ADK `Event` objects that simultaneously populate:
+Every `judgment-base-agent` primitive subclasses `google.adk.agents.BaseAgent` and emits unified ADK `Event` objects that simultaneously populate:
 - **`Event(output=...)`** — Consumed as typed `node_input` by downstream nodes in **ADK 2.0 `Workflow`**.
 - **`EventActions(route=..., state_delta=..., escalate=..., transfer_to_agent=...)`** — Consumed by **ADK `Workflow` conditional edges** (`when="..."`) and **ADK Composite Agents** (`SequentialAgent`, `LoopAgent`, `ParallelAgent`).
 
@@ -103,7 +103,7 @@ export TYPESAFE_API_KEY="ts_live_..."
 
 ### Question Primitives
 
-All question primitives are imported directly from `jev_base_agent` and validated at construction time:
+All question primitives are imported from `judgment_base_agent` (or alias `jev_base_agent`) and validated at construction time:
 
 | Primitive | Signature | Output Type | Confidence | Constraints & Behavior |
 | :--- | :--- | :---: | :---: | :--- |
@@ -130,7 +130,7 @@ Every `JudgmentAnswer`, `JudgmentResult`, and `JudgmentSchema` instance computes
 
 ### Agent Primitives & Aliases
 
-`jev-base-agent` exports model-agnostic primary classes alongside domain-specific aliases (`SystemOne*`, `Jev*`) for team ergonomics:
+`judgment-base-agent` exports model-agnostic primary classes alongside domain-specific aliases (`SystemOne*`, `Jev*`) for team ergonomics:
 
 | Primary Class | SystemOne Alias | Jev Alias | Role |
 | :--- | :--- | :--- | :--- |
@@ -149,7 +149,7 @@ Every `JudgmentAnswer`, `JudgmentResult`, and `JudgmentSchema` instance computes
 Define a declarative `JudgmentSchema` to evaluate multiple heterogeneous questions in a single request. The schema instance passed to your `decide` callback exposes typed attributes (`triage.intent`, `triage.is_urgent`, `triage.severity`) alongside `.confidence(field)` and `.tier(field)` helpers:
 
 ```python
-from jev_base_agent import (
+from judgment_base_agent import (
     ConfidenceTier,
     JudgmentAgent,
     JudgmentDecision,
@@ -204,7 +204,7 @@ triage_agent = JudgmentAgent(
 
 ```python
 from google.adk.workflow import START, Workflow
-from jev_base_agent import JudgmentSwitch
+from judgment_base_agent import JudgmentSwitch
 
 intent_router = JudgmentSwitch(
     name="intent_router",
@@ -241,7 +241,7 @@ workflow = (
 
 ```python
 from google.adk.agents import LoopAgent, SequentialAgent
-from jev_base_agent import JudgmentGuard
+from judgment_base_agent import JudgmentGuard
 
 grounding_guard = JudgmentGuard(
     name="grounding_guard",
@@ -273,7 +273,7 @@ pipeline = SequentialAgent(
 `JudgmentMap` evaluates an `item_schema` across every element of an input sequence in **one batched backend request** (`item_0__field`, `item_1__field`, ...), returning an immutable `JudgmentBatch[TItem, TJudgment]`:
 
 ```python
-from jev_base_agent import JudgmentField, JudgmentMap, JudgmentSchema, Noul, Skala
+from judgment_base_agent import JudgmentField, JudgmentMap, JudgmentSchema, Noul, Skala
 
 
 class DocumentAudit(JudgmentSchema):
@@ -318,7 +318,7 @@ passage_reranker = JudgmentMap(
 For concise workflow definitions, `@judgment_node` converts a typed Python policy function directly into a `JudgmentAgent` instance:
 
 ```python
-from jev_base_agent import JudgmentDecision, JudgmentField, JudgmentSchema, Noul, judgment_node
+from judgment_base_agent import JudgmentDecision, JudgmentField, JudgmentSchema, Noul, judgment_node
 
 
 class ComplianceCheck(JudgmentSchema):
@@ -345,7 +345,7 @@ When confidence falls into `ConfidenceTier.UNCERTAIN`, your `decide` policy can 
 
 ```python
 from google.adk.workflow import RequestInput
-from jev_base_agent import ConfidenceTier, JudgmentAgent, JudgmentDecision
+from judgment_base_agent import ConfidenceTier, JudgmentAgent, JudgmentDecision
 
 
 def hitl_policy(triage: IncidentTriage) -> JudgmentDecision:
@@ -368,7 +368,7 @@ def hitl_policy(triage: IncidentTriage) -> JudgmentDecision:
 Every agent accepts a `backend` parameter (`BaseJudgmentBackend`). Use `MockJudgmentBackend` to test routing policies, thresholds, and full ADK workflows offline without API keys:
 
 ```python
-from jev_base_agent import JudgmentGuard, MockJudgmentBackend
+from judgment_base_agent import JudgmentGuard, MockJudgmentBackend
 
 # Static answers: {question_key: (value, confidence)}
 mock_backend = MockJudgmentBackend(
@@ -391,7 +391,7 @@ To integrate an alternative calibration service or local classifier, implement t
 
 ```python
 from typing import Mapping
-from jev_base_agent import BaseJudgmentBackend, JudgmentAnswer, JudgmentQuestion, JudgmentResult
+from judgment_base_agent import BaseJudgmentBackend, JudgmentAnswer, JudgmentQuestion, JudgmentResult
 
 
 class CustomCalibrationBackend(BaseJudgmentBackend):
@@ -414,9 +414,11 @@ class CustomCalibrationBackend(BaseJudgmentBackend):
 ## Project Structure
 
 ```text
-jev-base-agent/
+judgment-base-agent/
+├── judgment_base_agent/
+│   └── __init__.py          # Primary model-agnostic package entrypoint
 ├── jev_base_agent/
-│   ├── __init__.py          # Public API exports and model-agnostic aliases
+│   ├── __init__.py          # Core implementation & public exports
 │   ├── agent.py             # JudgmentAgent(BaseAgent), JudgmentDecision, @judgment_node
 │   ├── errors.py            # JudgmentError hierarchy
 │   ├── presets.py           # JudgmentSwitch, JudgmentGuard, JudgmentMap, JudgmentBatch
@@ -430,7 +432,7 @@ jev-base-agent/
 ├── tests/
 │   ├── unit/                # Unit tests for primitives, schemas, backends, agents, presets
 │   └── integration/         # End-to-end ADK 2.0 Workflow, SequentialAgent, and LoopAgent tests
-└── pyproject.toml           # Hatchling build configuration & pytest settings
+└── pyproject.toml           # Build configuration & pytest settings
 ```
 
 ---
@@ -440,7 +442,7 @@ jev-base-agent/
 Run the complete unit and ADK integration test suite with coverage reporting:
 
 ```bash
-pytest --cov=jev_base_agent --cov-report=term-missing -v
+pytest --cov=jev_base_agent --cov=judgment_base_agent --cov-report=term-missing -v
 ```
 
-Current test coverage across `jev_base_agent` is **97%** (`22/22` tests passing).
+Current test coverage across `judgment_base_agent` / `jev_base_agent` is **97%** (`22/22` tests passing).

@@ -30,10 +30,15 @@ from jev_base_agent import (
 
 
 def test_aliases_are_identical() -> None:
+    import jev_base_agent
+    import judgment_base_agent
+
     assert SystemOneAgent is JevAgent
     assert JudgmentRouter is JudgmentSwitch
     assert JevRouter is JudgmentSwitch
     assert JevGate is JudgmentGuard
+    assert judgment_base_agent.JudgmentAgent is jev_base_agent.JudgmentAgent
+    assert judgment_base_agent.__all__ == jev_base_agent.__all__
 
 
 def test_presets_validation_errors() -> None:
