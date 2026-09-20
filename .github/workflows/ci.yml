@@ -28,7 +28,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      # Exact tag, not @v10: astral-sh/setup-uv publishes floating major tags
+      # only through v7, so @v8/@v9/@v10 do not resolve. Bump deliberately.
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
 
@@ -54,7 +56,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      # Exact tag, not @v10: astral-sh/setup-uv publishes floating major tags
+      # only through v7, so @v8/@v9/@v10 do not resolve. Bump deliberately.
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
 
