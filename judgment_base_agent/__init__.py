@@ -3,6 +3,7 @@
 from judgment_base_agent.agent import JudgmentAgent, JudgmentDecision, judgment_node
 from judgment_base_agent.backends import (
     BaseJudgmentBackend,
+    DiffusionGemmaBackend,
     MockJudgmentBackend,
     TypeSafeBackend,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "Choice",
     "ChoiceJudgment",
     "ConfidenceTier",
+    "DiffusionGemmaBackend",
     "JudgmentAgent",
     "JudgmentBatch",
     "JudgmentBatchEntry",

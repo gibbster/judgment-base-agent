@@ -400,6 +400,21 @@ class JudgmentMap(JudgmentAgent):
             return list(node_input)
         return []
 
+    async def judge(self, state: Any) -> JudgmentBatch[Any, Any]:
+        """Evaluate every item and return the batched result.
+
+        Overrides `JudgmentAgent.judge` so direct callers get the same
+        `JudgmentBatch` the ADK run path produces. Without this, the inherited
+        implementation would quietly return a flat `JudgmentResult` with the
+        namespaced `item_N__field` keys still unsplit.
+
+        Accepts either a session-state mapping (items read via `items_key` /
+        `items_getter`) or a bare sequence of items.
+        """
+        if isinstance(state, dict):
+            return await self._evaluate_core(state, None)
+        return await self._evaluate_core({}, state)
+
     async def _evaluate_core(
         self, session_state: dict[str, Any], node_input: Any
     ) -> JudgmentBatch[Any, Any]:

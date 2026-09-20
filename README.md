@@ -4,7 +4,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#installation)
 [![Google ADK 2.0](https://img.shields.io/badge/Google%20ADK-2.0.0a2%2B-4285F4.svg)](#google-adk-20-integration)
-[![Coverage 95%](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](#running-tests)
+[![Coverage 92%](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](#running-tests)
 
 ---
 
@@ -207,10 +207,83 @@ Because `TypeSafeBackend` evaluates all batched `Choice`, `Score`, and `Noul` cr
 
 ---
 
+## Self-Hosting Google `DiffusionGemma-26B-A4B` as Jev on GCP Cloud Run
+
+In addition to the managed TypeSafe System One API (`TYPESAFE_API_KEY`), `judgment-base-agent` can run **Google's `DiffusionGemma-26B-A4B` (`google/diffusiongemma-26B-A4B-it`, Apache-2.0, ungated)** as a self-hosted Jev endpoint on **Cloud Run**, implementing single-step "bubble-sheet" diffusion canvas scoring.
+
+The container ships **two engines**:
+
+| Engine | `DIFFUSIONGEMMA_ENGINE` | Notes |
+| :-- | :-- | :-- |
+| **`transformers`** (default) | `transformers` | Native single-step `DiffusionGemmaForBlockDiffusion` encoder-prefill + bidirectional-decoder canvas pass. Requires `transformers >= 5.8.0`. |
+| **vLLM** (opt-in) | `vllm` | For raw `/v1/completions` scoring. Needs [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250), which is **still open** — this is why `transformers` is the default. |
+
+All deployment artifacts live in [`deploy/diffusiongemma_jev/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/):
+* [`Dockerfile`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/Dockerfile) & [`entrypoint.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/entrypoint.sh) — `python:3.11-slim` + torch (cu124) + `transformers` + FastAPI. Launches vLLM only when `DIFFUSIONGEMMA_ENGINE=vllm`.
+* [`server.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/server.py) — Exposes `GET /health` plus `POST /v1/system_one` and its `POST /v1/judgment` alias, returning calibrated `choices`, `scores`, `nouls`, and Shannon-entropy `confidence`.
+* [`deploy_cloud_run.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/deploy_cloud_run.sh) — 1-command deploy. Auto-creates the Artifact Registry repo, attempts `1x nvidia-l4`, and **falls back to 4 vCPU / 16 GiB CPU if L4 quota is unavailable**.
+
+### 1. Deploy in 1 Command
+
+```bash
+export PROJECT_ID="your-gcp-project-id"
+./deploy/diffusiongemma_jev/deploy_cloud_run.sh
+```
+
+No HuggingFace token is required — `google/diffusiongemma-26B-A4B-it` is public and ungated. The script prints the service URL and the matching `export DIFFUSIONGEMMA_JEV_URL=...` line when it finishes.
+
+> **GPU note.** The 26B weights need a GPU. Cloud Run GPU services require `--min-instances >= 1`, and L4 quota is `0` on new projects — request it at [g.co/cloudrun/gpu-quota](https://g.co/cloudrun/gpu-quota). Of the public quantizations, `nvidia/...NVFP4` (17.53 GiB) fits an L4's 24 GB; `RedHatAI/...FP8-dynamic` (25.33 GiB) does not. Without a GPU the script still deploys on CPU using a small test checkpoint, which validates the full request path but **not** judgment quality.
+
+### 2. Use with Existing ADK Agents & Examples (Zero Code Changes)
+
+`TypeSafeBackend` auto-detects `DIFFUSIONGEMMA_JEV_URL` and routes every `JudgmentAgent`, `JudgmentSwitch`, `JudgmentGuard`, `JudgmentMap`, and `JudgmentRubricEvaluator` call to your container — no agent code changes:
+
+```bash
+export DIFFUSIONGEMMA_JEV_URL="https://diffusiongemma-jev-xyz-uc.a.run.app"
+PYTHONPATH=. adk web examples --port 8008
+```
+
+If the Cloud Run service is private (the default, and mandatory under a Domain Restricted Sharing org policy that blocks `allUsers`), pass an identity token via `DIFFUSIONGEMMA_API_KEY`; the backend sends it as `Authorization: Bearer`:
+
+```bash
+# Note: user-account tokens carry the wrong `aud` and will 401.
+# Mint via a service account granted roles/run.invoker:
+export DIFFUSIONGEMMA_API_KEY="$(gcloud auth print-identity-token \
+  --impersonate-service-account=YOUR_SA@PROJECT.iam.gserviceaccount.com \
+  --audiences="$DIFFUSIONGEMMA_JEV_URL" --include-email)"
+```
+
+Or instantiate [`DiffusionGemmaBackend`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/judgment_base_agent/backends/diffusiongemma.py) explicitly (`mode="system_one"` for the container, `mode="vllm"` for raw vLLM `/v1/completions`):
+
+```python
+from judgment_base_agent import DiffusionGemmaBackend, JudgmentSwitch
+
+router = JudgmentSwitch(
+    name="diffusiongemma_router",
+    routes={"billing": "Billing questions", "tech_support": "Technical bugs"},
+    backend=DiffusionGemmaBackend(base_url="https://diffusiongemma-jev-xyz-uc.a.run.app"),
+)
+```
+
+### 3. Measured Batch Scaling on a Live Deployment
+
+Server-reported latency, 7 samples per row after a warm call, against a deployed Cloud Run revision:
+
+| Criteria | Server p50 | Per-criterion |
+| --: | --: | --: |
+| 1 | 150.8 ms | 150.8 ms |
+| 5 | 152.9 ms | 30.6 ms |
+| 10 | 156.6 ms | 15.7 ms |
+| 15 | 158.8 ms | **10.6 ms** |
+
+Scoring 15 criteria costs **+8 ms** over scoring 1 — all criteria occupy distinct slots in a single diffusion canvas and resolve in one forward pass. This near-`O(1)` batching is the property autoregressive judges cannot match.
+
+---
+
 ## Running Tests & Benchmarks
 
 ```bash
-# Run full unit + integration test suite (32 tests, 93% coverage)
+# Run full unit + integration test suite (41 tests, 92% coverage)
 pytest --cov=judgment_base_agent --cov-report=term-missing -v
 
 # Run live 5-example latency & cost benchmark (TypeSafeBackend vs gemini-3.5-flash-lite & gemini-3.7-flash)

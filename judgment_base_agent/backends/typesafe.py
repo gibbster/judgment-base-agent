@@ -93,15 +93,22 @@ class TypeSafeBackend:
         default_model: str = "judgment-latest",
         confidence_floor: float = 0.50,
         client: Any | None = None,
+        base_url: str | None = None,
     ) -> None:
         self.api_key = api_key
         self.default_model = default_model
         self.confidence_floor = confidence_floor
         self.client = client
+        self.base_url = base_url
         self._shared_client: Any | None = None
+        self._diffusion_backend: Any | None = None
+        self._diffusion_transport_post: Any | None = None
 
     async def aclose(self) -> None:
-        """Close the cached AsyncTypeSafeClient if one was created."""
+        """Close the cached AsyncTypeSafeClient or DiffusionGemmaBackend if one was created."""
+        if self._diffusion_backend is not None:
+            await self._diffusion_backend.aclose()
+            self._diffusion_backend = None
         if self._shared_client is not None:
             close_fn = getattr(self._shared_client, "close", None) or getattr(
                 self._shared_client, "__aexit__", None
@@ -123,14 +130,42 @@ class TypeSafeBackend:
         questions: Mapping[str, Any],
         model: str | None = None,
     ) -> JudgmentResult:
-        """Send state and batched questions to TypeSafe system_one and normalize the result."""
+        """Send state and batched questions to TypeSafe system_one (or DiffusionGemma container if configured)."""
         if not questions:
             return JudgmentResult(model=model or self.default_model)
+
+        target_model = model or self.default_model
+        diffusion_url = (
+            self.base_url
+            or os.environ.get("DIFFUSIONGEMMA_JEV_URL")
+            or os.environ.get("OPENJEV_BASE_URL")
+        )
+        if self.client is None and (
+            diffusion_url or "diffusiongemma" in target_model.lower()
+        ):
+            from judgment_base_agent.backends.diffusiongemma import (
+                DiffusionGemmaBackend,
+            )
+
+            if self._diffusion_backend is None:
+                self._diffusion_backend = DiffusionGemmaBackend(
+                    base_url=diffusion_url,
+                    api_key=self.api_key,
+                    default_model=target_model,
+                    confidence_floor=self.confidence_floor,
+                    transport_post=self._diffusion_transport_post,
+                )
+            else:
+                self._diffusion_backend.transport_post = self._diffusion_transport_post
+            return await self._diffusion_backend.evaluate(
+                state=state,
+                questions=questions,
+                model=model,
+            )
 
         sdk_questions = {
             str(k): _to_typesafe_question(v) for k, v in questions.items()
         }
-        target_model = model or self.default_model
 
         try:
             if self.client is not None:
@@ -146,7 +181,8 @@ class TypeSafeBackend:
                 resolved_key = self.api_key or os.environ.get("TYPESAFE_API_KEY")
                 if not resolved_key:
                     raise JudgmentConfigError(
-                        "TYPESAFE_API_KEY environment variable or explicit api_key is required "
+                        "TYPESAFE_API_KEY (or DIFFUSIONGEMMA_JEV_URL for self-hosted DiffusionGemma) "
+                        "environment variable or explicit api_key is required "
                         "to evaluate questions with TypeSafeBackend."
                     )
                 sdk_model = (

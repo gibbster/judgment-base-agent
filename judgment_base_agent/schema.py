@@ -46,17 +46,26 @@ class JudgmentSchema(BaseModel):
     @classmethod
     def build_questions(cls) -> dict[str, Any]:
         """Extract the mapping of question keys to question primitives declared on this schema."""
+        from judgment_base_agent.primitives import Choice, Noul, Score
+
         questions: dict[str, Any] = {}
         for field_name, field_info in cls.model_fields.items():
             extra = field_info.json_schema_extra
             if isinstance(extra, dict) and _JUDGMENT_QUESTION_META in extra:
                 q_key = extra.get(_JUDGMENT_KEY_META) or field_name
                 questions[str(q_key)] = extra[_JUDGMENT_QUESTION_META]
+            elif isinstance(field_info.default, (Choice, Score, Noul)):
+                questions[str(field_name)] = field_info.default
         if not questions:
             raise JudgmentConfigError(
-                f"JudgmentSchema '{cls.__name__}' defines no fields using JudgmentField(...)."
+                f"JudgmentSchema '{cls.__name__}' defines no fields using JudgmentField(...) or Choice/Score/Noul defaults."
             )
         return questions
+
+    @classmethod
+    def questions(cls) -> dict[str, Any]:
+        """Alias for build_questions()."""
+        return cls.build_questions()
 
     @classmethod
     def from_result(cls, result: JudgmentResult) -> Self:

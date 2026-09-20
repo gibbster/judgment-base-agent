@@ -124,6 +124,23 @@ class JudgmentAgent(BaseAgent):
     transfer_to_sub_agent: bool = False
     backend: BaseJudgmentBackend | None = None
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Reject subclasses that customize `_evaluate_core` but not `judge`.
+
+        The two entry points must stay in agreement. A subclass that changes
+        the shape of `_evaluate_core` output without updating `judge` would
+        silently hand `judge` callers a plain `JudgmentResult` instead of its
+        real output type -- a bug that is invisible until it reaches a caller.
+        """
+        super().__init_subclass__(**kwargs)
+        if "_evaluate_core" in cls.__dict__ and "judge" not in cls.__dict__:
+            raise TypeError(
+                f"{cls.__name__} overrides `_evaluate_core` but not `judge`, so "
+                "`judge()` would silently return a different type than the ADK "
+                "run path. It must also override `judge` (normally by "
+                "delegating to `_evaluate_core`)."
+            )
+
     def __init__(
         self,
         *,
@@ -187,6 +204,27 @@ class JudgmentAgent(BaseAgent):
                 return self.questions(state_payload, node_input)
             return self.questions(state_payload)
         return dict(self.questions or {})
+
+    async def judge(self, state: Any) -> JudgmentResult:
+        """Directly evaluate `state` and return the raw, untyped `JudgmentResult`.
+
+        Resolves `state_keys` / `state_builder` exactly like the ADK
+        `_run_async_impl` path, so both entry points send the same payload to
+        the backend. Unlike `_evaluate_core` this deliberately does *not* apply
+        `schema_cls` typing; callers wanting typed output should build it from
+        the schema themselves.
+        """
+        session_state = state if isinstance(state, dict) else {}
+        state_payload = self._resolve_state(session_state, state)
+        resolved_questions = self._resolve_questions(
+            state_payload, session_state, state
+        )
+        active_backend = self.backend or TypeSafeBackend(default_model=self.model)
+        return await active_backend.evaluate(
+            state=state_payload,
+            questions=resolved_questions,
+            model=self.model,
+        )
 
     async def _evaluate_core(
         self, session_state: dict[str, Any], node_input: Any

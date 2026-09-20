@@ -15,6 +15,7 @@ from judgment_base_agent import (
     JudgmentConfigError,
     JudgmentDecision,
     JudgmentField,
+    JudgmentAgent,
     JudgmentGuard,
     JudgmentMap,
     JudgmentRouter,
@@ -248,3 +249,58 @@ async def test_judgment_map_empty_and_items_getter() -> None:
         )
     ]
     assert events[-1].output["entries"] == []
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: `judge()` must agree with the ADK `_run_async_impl` path.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_judgment_map_judge_returns_batch_not_flat_result() -> None:
+    """JudgmentMap.judge() must fan out per item instead of falling through to the base agent."""
+    backend = MockJudgmentBackend(
+        responses={"item_0__relevant": 0.91, "item_1__relevant": 0.10}
+    )
+    mapper = JudgmentMap(
+        name="judge_batch_mapper",
+        items_key="docs",
+        item_questions=lambda item, idx: {
+            "relevant": Noul(instructions=f"Is {item['id']} relevant?")
+        },
+        backend=backend,
+    )
+
+    batch = await mapper.judge({"docs": [{"id": "d0"}, {"id": "d1"}]})
+
+    assert isinstance(batch, JudgmentBatch)
+    assert len(batch.entries) == 2
+    assert len(backend.calls) == 1  # still a single batched backend call
+    assert [entry.item["id"] for entry in batch.entries] == ["d0", "d1"]
+    assert batch.entries[0].raw_result.noul("relevant") == pytest.approx(0.91)
+    assert batch.entries[1].raw_result.noul("relevant") == pytest.approx(0.10)
+
+
+@pytest.mark.asyncio
+async def test_judge_honors_state_keys_like_the_adk_path() -> None:
+    """judge() must apply state_keys so it cannot leak state the ADK path would have filtered."""
+    backend = MockJudgmentBackend(responses={"ok": 0.80})
+    agent = JudgmentAgent(
+        name="scoped_agent",
+        state_keys=["ticket"],
+        questions={"ok": Noul(instructions="Is this fine?")},
+        backend=backend,
+    )
+
+    await agent.judge({"ticket": "hello", "secret": "do-not-send"})
+
+    assert backend.calls[0]["state"] == {"ticket": "hello"}
+
+
+def test_subclass_overriding_evaluate_core_must_also_override_judge() -> None:
+    """Guard the silent-wrong-type trap: custom _evaluate_core without judge() is a definition error."""
+    with pytest.raises(TypeError, match="must also override"):
+
+        class BrokenAgent(JudgmentAgent):
+            async def _evaluate_core(self, session_state, node_input):  # type: ignore[override]
+                return "structurally different output"
