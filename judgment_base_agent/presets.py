@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 import inspect
 from typing import Any, Generic, TypeVar
@@ -276,9 +276,9 @@ class JudgmentBatch(Generic[TItem, TJudgment]):
 
     def reduce(
         self,
-        reducer: Callable[[R, TItem, TJudgment], R],
-        initial: R,
-    ) -> R:
+        reducer: Callable[[TAcc, TItem, TJudgment], TAcc],
+        initial: TAcc,
+    ) -> TAcc:
         """Fold over all entries in the batch."""
         acc = initial
         for entry in self.entries:
