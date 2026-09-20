@@ -1,5 +1,7 @@
 """Unit tests for primitives.py, errors.py, and schema.py."""
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from judgment_base_agent.errors import JudgmentConfigError
@@ -20,7 +22,7 @@ from judgment_base_agent.schema import JudgmentField, JudgmentSchema
 def test_question_primitives_immutability_and_validation() -> None:
     c = Choice(instructions="Which dept?", criteria=["billing", "tech"])
     assert c.normalized_criteria() == {"billing": None, "tech": None}
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         c.instructions = "mutated"  # type: ignore[misc]
 
     with pytest.raises(JudgmentConfigError):
