@@ -315,3 +315,79 @@ async def test_system_one_path_defaults_to_the_existing_container_route() -> Non
     )
 
     assert seen == ["https://example.a.run.app/v1/system_one"]
+
+
+@pytest.mark.asyncio
+async def test_question_keys_are_aliased_on_the_wire() -> None:
+    """Long/underscored keys break the vLLM PR's canvas template, so alias them.
+
+    vllm-project/vllm#57250's structured_server.py prints the question key next to
+    the answer slot in a shared canvas template. Keys like `item_0__urgency_score`
+    change how the adjacent label tokenizes, and the server then rejects its own
+    default `no` label with 422 "label 'no' is not a single token". Short opaque
+    keys avoid it. Verified live against DiffusionGemma-26B on an L4.
+    """
+    captured: list[dict[str, Any]] = []
+
+    async def fake_post(url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        captured.append(json)
+        return {
+            "model": "dg",
+            "answers": {
+                "q0": {"type": "choice", "choice": "billing", "probabilities": {"billing": 0.9, "tech": 0.1}, "confidence": 0.9},
+                "q1": {"type": "score", "score": 1.5, "legend": {}, "probabilities": {}, "confidence": 0.8},
+                "q2": {"type": "noul", "noul": 0.7},
+            },
+        }
+
+    backend = DiffusionGemmaBackend(base_url="http://gpu:8011", transport_post=fake_post)
+    result = await backend.evaluate(state={"t": "x"}, questions=RoutingSchema.questions())
+
+    sent_keys = list(captured[0]["questions"].keys())
+    assert sent_keys == ["q0", "q1", "q2"], f"expected opaque keys on the wire, got {sent_keys}"
+
+    # The caller still sees its own key names.
+    assert result.choice("dept") == "billing"
+    assert result.score("frustration") == pytest.approx(1.5)
+    assert result.noul("escalate") == pytest.approx(0.7)
+
+
+@pytest.mark.asyncio
+async def test_aliasing_still_reads_servers_that_echo_the_original_keys() -> None:
+    """Our own transformers container echoes whatever keys it received; be tolerant."""
+
+    async def fake_post(url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        return {
+            "model": "dg",
+            "choices": {"dept": {"choice": "tech", "probabilities": {"tech": 1.0}, "confidence": 1.0}},
+            "scores": {"frustration": {"score": 2.0, "legend": {}, "probabilities": {}, "confidence": 1.0}},
+            "nouls": {"escalate": {"noul": 0.2}},
+        }
+
+    backend = DiffusionGemmaBackend(base_url="http://gpu:8011", transport_post=fake_post)
+    result = await backend.evaluate(state={"t": "x"}, questions=RoutingSchema.questions())
+
+    assert result.choice("dept") == "tech"
+    assert result.noul("escalate") == pytest.approx(0.2)
+
+
+@pytest.mark.asyncio
+async def test_key_aliasing_can_be_disabled() -> None:
+    """Opaque keys drop a semantic hint from the prompt, so allow opting out."""
+    captured: list[dict[str, Any]] = []
+
+    async def fake_post(url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        captured.append(json)
+        return {"model": "dg", "nouls": {"escalate": {"noul": 0.5}}}
+
+    backend = DiffusionGemmaBackend(
+        base_url="http://gpu:8011",
+        transport_post=fake_post,
+        alias_question_keys=False,
+    )
+    await backend.evaluate(
+        state={"t": "x"},
+        questions={"escalate": RoutingSchema.questions()["escalate"]},
+    )
+
+    assert list(captured[0]["questions"].keys()) == ["escalate"]

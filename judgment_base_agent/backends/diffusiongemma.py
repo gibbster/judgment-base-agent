@@ -25,6 +25,14 @@ from judgment_base_agent.primitives import (
 TransportPostFn = Callable[[str, dict[str, Any], dict[str, str]], Awaitable[dict[str, Any]]]
 
 
+def _env_flag(name: str, *, default: bool) -> bool:
+    """Read a boolean environment variable, falling back to ``default``."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _question_kind(q: Any) -> str:
     """Identify primitive type ('choice', 'score', 'noul')."""
     cls_name = type(q).__name__.lower()
@@ -209,6 +217,27 @@ def compute_noul_from_logprobs(
     return NoulJudgment(noul=float(prob))
 
 
+def _pick_answer(
+    key: str,
+    alias: str | None,
+    answers: Mapping[str, Any],
+    legacy: Mapping[str, Any],
+) -> Any:
+    """Resolve one answer, preferring the wire alias then the original key.
+
+    Servers differ in which key they answer under: the reference
+    ``structured_server.py`` echoes back whatever key it received (so, the
+    alias), while mocks and the managed Jev API answer under the original
+    schema key. Try both against the modern ``answers`` map before falling back
+    to the legacy per-kind (``choices`` / ``scores`` / ``nouls``) maps.
+    """
+    for source in (answers, legacy):
+        for candidate in (alias, key):
+            if candidate is not None and candidate in source:
+                return source[candidate]
+    raise KeyError(key)
+
+
 class DiffusionGemmaBackend:
     """Judgment backend for Google's DiffusionGemma-as-Jev ('djev' / OpenJev on GCP Cloud Run or vLLM)."""
 
@@ -223,6 +252,7 @@ class DiffusionGemmaBackend:
         timeout: float = 30.0,
         transport_post: TransportPostFn | None = None,
         system_one_path: str | None = None,
+        alias_question_keys: bool | None = None,
     ) -> None:
         self.base_url = (
             base_url
@@ -242,6 +272,25 @@ class DiffusionGemmaBackend:
             system_one_path
             or os.environ.get("DIFFUSIONGEMMA_SYSTEM_ONE_PATH")
             or "/v1/system_one"
+        )
+        # The reference server in vLLM PR #57250 lays every question out as a row
+        # in one shared canvas template, printing the question key immediately
+        # next to its answer slot. Keys whose trailing characters perturb how the
+        # adjacent label tokenizes make the server reject its own default "no"
+        # label ("label 'no' is not a single token" / "labels do not share one
+        # template slot"), but only once enough rows share the canvas. JudgmentMap
+        # emits exactly the offending shape ("item_0__urgency_score"). Sending
+        # positional keys ("q0", "q1", ...) on the wire and mapping the answers
+        # back sidesteps the bug without touching any schema or agent.
+        #
+        # Tradeoff: opaque keys drop a weak semantic hint from the prompt.
+        # Measured impact on review_triage_batch was within noise (2.98/2.02/1.00
+        # vs 3.00/2.00/1.19 on managed Jev), but the opt-out exists for backends
+        # that read the key as signal.
+        self.alias_question_keys = (
+            alias_question_keys
+            if alias_question_keys is not None
+            else _env_flag("DIFFUSIONGEMMA_ALIAS_QUESTION_KEYS", default=True)
         )
         self.default_model = default_model
         self.confidence_floor = confidence_floor
@@ -325,8 +374,15 @@ class DiffusionGemmaBackend:
         target_model: str,
     ) -> JudgmentResult:
         endpoint = self._resolve_endpoint(self.system_one_path)
+        # Positional aliases keep question keys inert on the wire; see the
+        # comment on self.alias_question_keys for the upstream bug this dodges.
+        alias_for: dict[Any, str] = (
+            {key: f"q{i}" for i, key in enumerate(questions)}
+            if self.alias_question_keys
+            else {}
+        )
         serialized_questions = {
-            str(k): _serialize_question(v) for k, v in questions.items()
+            alias_for.get(k, str(k)): _serialize_question(v) for k, v in questions.items()
         }
         payload = {
             "state": state,
@@ -346,9 +402,10 @@ class DiffusionGemmaBackend:
         parsed_nouls: dict[str, NoulJudgment] = {}
 
         for key, orig_q in questions.items():
+            alias = alias_for.get(key)
             kind = _question_kind(orig_q)
             if kind == "choice":
-                c_item = answers_raw.get(key) or choices_raw[key]
+                c_item = _pick_answer(str(key), alias, answers_raw, choices_raw)
                 parsed_choices[key] = ChoiceJudgment.from_raw(
                     choice=str(c_item["choice"]),
                     probabilities=dict(c_item.get("probabilities") or {}),
@@ -356,7 +413,7 @@ class DiffusionGemmaBackend:
                     confidence_floor=self.confidence_floor,
                 )
             elif kind == "score":
-                s_item = answers_raw.get(key) or scores_raw[key]
+                s_item = _pick_answer(str(key), alias, answers_raw, scores_raw)
                 parsed_scores[key] = ScoreJudgment.from_raw(
                     score=float(s_item["score"]),
                     legend=dict(s_item.get("legend") or {}),
@@ -365,7 +422,7 @@ class DiffusionGemmaBackend:
                     confidence_floor=self.confidence_floor,
                 )
             elif kind == "noul":
-                n_item = answers_raw.get(key) or nouls_raw[key]
+                n_item = _pick_answer(str(key), alias, answers_raw, nouls_raw)
                 noul_val = n_item["noul"] if isinstance(n_item, Mapping) else n_item
                 parsed_nouls[key] = NoulJudgment(noul=float(noul_val))
 

@@ -31,6 +31,34 @@ property that makes this model worth deploying. It has been deleted rather than 
 One wire-level difference: the PR's server listens on `POST /v1/systemone` (no
 underscore). Point agents at it with `DIFFUSIONGEMMA_SYSTEM_ONE_PATH=/v1/systemone`.
 
+### Upstream bug: question keys can break the shared canvas template
+
+`structured_server.py` lays each question out as a row in one shared canvas template and
+prints the **question key immediately next to its answer slot**. Keys whose trailing
+characters change how the adjacent label tokenizes make the server reject its own default
+`no` label, but only once enough rows share a canvas:
+
+```
+422  question 'item_0_a': label 'no' is not a single token
+422  question 'item_0__is_safe_not_spam': labels do not share one template slot
+```
+
+The same 15 questions with identical bodies return `200` when the keys are renamed to
+`n0…n9`/`s0…s4`, so nothing about the payload is invalid Jev. `JudgmentMap` generates
+exactly the offending shape (`item_{i}__{field}`), which made `review_triage_batch` fail
+against this engine while working fine on managed Jev.
+
+`DiffusionGemmaBackend` therefore sends **positional keys** (`q0`, `q1`, …) on the wire and
+maps the answers back to the real schema keys. Agents and schemas are untouched, and the
+single-canvas O(1) property is preserved. The un-aliasing is tolerant — it accepts either
+the alias or the original key — so mocks and the managed API, which echo the original
+names, keep working, and the workaround self-heals if the PR fixes its template builder.
+
+Opt out with `DIFFUSIONGEMMA_ALIAS_QUESTION_KEYS=false` (or
+`DiffusionGemmaBackend(alias_question_keys=False)`) if you want the key text to reach the
+prompt as a semantic hint. Measured quality impact on `review_triage_batch` was within
+noise: urgency `3.00 / 2.01 / 1.26` self-hosted vs `3.00 / 2.00 / 1.19` on managed Jev.
+
 ### Building the vLLM engine
 
 > [!WARNING]

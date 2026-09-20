@@ -265,6 +265,16 @@ router = JudgmentSwitch(
 )
 ```
 
+#### Environment variables
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `DIFFUSIONGEMMA_JEV_URL` | — | Base URL. Setting it makes `TypeSafeBackend` delegate automatically. |
+| `DIFFUSIONGEMMA_API_KEY` | — | Sent as `Authorization: Bearer`. Needed for private Cloud Run. |
+| `DIFFUSIONGEMMA_MODEL_ID` | `diffusiongemma-26B-A4B-it-NVFP4` | Model name passed through to the server. |
+| `DIFFUSIONGEMMA_SYSTEM_ONE_PATH` | `/v1/system_one` | Our container's route. Use `/v1/systemone` for the vLLM PR's `structured_server.py`. |
+| `DIFFUSIONGEMMA_ALIAS_QUESTION_KEYS` | `true` | Send positional `q0…qN` keys on the wire instead of schema key names, working around an upstream template-builder bug in `structured_server.py` that 422s on keys like `item_0__urgency_score`. Answers are mapped back transparently. Set `false` to send the real key names. |
+
 ### 3. Measured Batch Scaling on a Live Deployment
 
 Server-reported latency, 7 samples per row after a warm call, against a deployed Cloud Run revision:
