@@ -1,7 +1,6 @@
 """Unit tests for primitives.py, errors.py, and schema.py."""
 
 import pytest
-from pydantic import ValidationError
 
 from judgment_base_agent.errors import JudgmentConfigError
 from judgment_base_agent.primitives import (
