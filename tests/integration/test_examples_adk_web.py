@@ -177,8 +177,10 @@ async def test_example_5_llm_as_a_judge_rubric_evalset() -> None:
     """Verify `SUPPORT_QUALITY_RUBRIC` and `support_rubric.evalset.json` pass compliant turns and veto-fail unsafe turns."""
     import json
     from pathlib import Path
+
     from google.adk.evaluation.eval_metrics import EvalStatus
     from google.adk.evaluation.eval_set import EvalSet
+
     from examples.llm_as_a_judge_rubric.agent import SUPPORT_QUALITY_RUBRIC
     from judgment_base_agent.evals import CLARITY_KEY, JudgmentRubricEvaluator
 

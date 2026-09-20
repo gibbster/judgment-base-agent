@@ -1,21 +1,15 @@
 """Unit tests for JudgmentSwitch, JudgmentGuard, JudgmentMap, and JudgmentBatch."""
 
-import pytest
 from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+import pytest
 
 from judgment_base_agent import (
-    Choice,
-    ChoiceJudgment,
-    SystemOneAgent,
-    SystemOneGate,
-    SystemOneRouter,
+    JudgmentAgent,
     JudgmentBatch,
     JudgmentConfigError,
-    JudgmentDecision,
     JudgmentField,
-    JudgmentAgent,
     JudgmentGuard,
     JudgmentMap,
     JudgmentRouter,
@@ -27,11 +21,12 @@ from judgment_base_agent import (
     Score,
     ScoreJudgment,
     SystemOneAgent,
+    SystemOneGate,
+    SystemOneRouter,
 )
 
 
 def test_aliases_are_identical() -> None:
-    import judgment_base_agent
     import judgment_base_agent
 
     assert SystemOneAgent is SystemOneAgent
