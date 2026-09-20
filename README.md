@@ -1,520 +1,129 @@
-# `judgment-base-agent`
+# `judgment-base-agent` (`judgment_base_agent`)
 
-**Calibrated Judgment & Control-Flow Primitives for Google Agent Development Kit (ADK)**
+**Calibrated System One Judgment (`Choice`, `Score`, `Noul`) for Google ADK 2.0 Workflows & Composite Agents**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Google ADK](https://img.shields.io/badge/google--adk-%3E%3D2.7.0-4285F4.svg)](https://google.github.io/adk-docs/)
-[![TypeSafe SDK](https://img.shields.io/badge/typesafe--sdk-%3E%3D0.2.0-0F172A.svg)](https://github.com/typesafe-ai)
-[![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)](#testing--verification)
-
-`judgment-base-agent` (`judgment_base_agent`) is a model-agnostic Python library that integrates calibrated **System One / Judgment models** (`model="judgment-latest"` via the TypeSafe SDK) directly into **Google ADK (`google-adk >= 2.7.0`)** applications.
-
-It provides production-ready `BaseAgent` primitives—**`JudgmentAgent`**, **`JudgmentSwitch`**, **`JudgmentGuard`**, and **`JudgmentMap`**—designed to replace fragile, multi-turn LLM prompt-parsing with fast, single-call, confidence-calibrated evaluations across both **ADK 2.0 Graph `Workflow`s** and **ADK Composite Agents** (`SequentialAgent`, `ParallelAgent`, `LoopAgent`).
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#installation)
+[![Google ADK 2.0](https://img.shields.io/badge/Google%20ADK-2.0.0a2%2B-4285F4.svg)](#google-adk-20-integration)
+[![Coverage 95%](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](#running-tests)
 
 ---
 
-## Table of Contents
+## Why `judgment-base-agent`?
 
-1. [Overview & Architecture](#overview--architecture)
-2. [Core Design Principles](#core-design-principles)
-3. [Installation & Configuration](#installation--configuration)
-4. [Interactive `adk web examples` Showcase](#interactive-adk-web-examples-showcase)
-5. [API Reference](#api-reference)
-   - [Question Primitives (`Choice`, `Score`, `Noul`)](#question-primitives-choice-score-noul)
-   - [Calibrated Confidence Tiers](#calibrated-confidence-tiers)
-   - [Agent Primitives & Aliases](#agent-primitives--aliases)
-6. [Usage Guide](#usage-guide)
-   - [1. Multi-Dimensional Evaluation (`JudgmentSchema` & `JudgmentAgent`)](#1-multi-dimensional-evaluation-judgmentschema--judgmentagent)
-   - [2. Conditional Routing in ADK 2.0 Graph `Workflow` (`JudgmentSwitch`)](#2-conditional-routing-in-adk-20-graph-workflow-judgmentswitch)
-   - [3. Iterative Quality Gating in `LoopAgent` (`JudgmentGuard`)](#3-iterative-quality-gating-in-loopagent-judgmentguard)
-   - [4. Single-Call Collection Filtering & Ranking (`JudgmentMap` & `JudgmentBatch`)](#4-single-call-collection-filtering--ranking-judgmentmap--judgmentbatch)
-   - [5. Functional Decorator API (`@judgment_node`)](#5-functional-decorator-api-judgment_node)
-   - [6. Human-in-the-Loop Escalation (`RequestInput`)](#6-human-in-the-loop-escalation-requestinput)
-7. [Deterministic Testing & Custom Backends](#deterministic-testing--custom-backends)
-8. [Project Structure](#project-structure)
-9. [Testing & Verification](#testing--verification)
+When building AI agents in **Google ADK 2.0**, standard LLM prompts struggle with **control flow**:
+1. **Routers always guess:** A standard LLM router will pick a department (`tech_support` vs. `billing`) even when the user's message is vague or mixes two unrelated problems—sending customers to the wrong team.
+2. **Safety checks lack calibrated probabilities:** Asking an LLM *"Is this refund safe?"* returns text instead of calibrated probabilities (`0.00–1.00`) and ordered risk scores (`0.00–3.00`) that deterministic Python `if/else` code can enforce.
+3. **Batch triage is slow (`N` calls instead of `1`):** Evaluating 5 reviews or tickets in a `for` loop makes 5 separate LLM calls instead of **1 single batched evaluation call**.
 
----
-
-## Overview & Architecture
-
-In multi-agent systems, routing, guardrails, loop termination, and candidate reranking are **judgment tasks**, not open-ended generation tasks. Using standard generative `LlmAgent` nodes for control flow introduces:
-
-1. **Uncalibrated Decisions:** Generative token probabilities do not reliably reflect epistemic certainty, making it difficult to detect ambiguous inputs and escalate to humans or fallback branches.
-2. **Latency & Token Overhead:** Evaluating multiple criteria or scoring a list of `N` retrieved documents often triggers `N` sequential LLM calls.
-3. **Control-Flow Coupling:** Prompt logic and routing rules become entangled inside natural-language instructions rather than testable Python code.
-
-`judgment-base-agent` resolves these challenges by separating **calibrated judgment inference** from **deterministic workflow policy**:
+`judgment-base-agent` solves this by separating **probabilistic perception** (evaluated in **1 single batched System One call**) from **deterministic Python policy**:
 
 ```mermaid
 flowchart LR
-    State["ADK Session State\nor Node Input"] --> Builder["state_keys /\nstate_builder"]
-    Builder --> Backend["BaseJudgmentBackend\n(TypeSafeBackend / Mock)"]
-    Backend --> Schema["Typed JudgmentResult /\nJudgmentSchema"]
-    Schema --> Policy["User-Owned Python Policy\n(decide / route_policy / transform)"]
-    Policy --> Event["ADK Event\n(output + EventActions)"]
-```
-
-Every `judgment-base-agent` primitive subclasses `google.adk.agents.BaseAgent` and emits unified ADK `Event` objects that simultaneously populate:
-- **`Event(output=...)`** — Consumed as typed `node_input` by downstream nodes in **ADK 2.0 `Workflow`**.
-- **`EventActions(route=..., state_delta=..., escalate=..., transfer_to_agent=..., request_input=...)`** — Consumed by **ADK `Workflow` conditional edges** (`when="..."`) and **ADK Composite Agents** (`SequentialAgent`, `LoopAgent`, `ParallelAgent`).
-
----
-
-## Core Design Principles
-
-| Principle | Implementation |
-| :--- | :--- |
-| **Code Owns the Workflow** | Models return typed values and calibrated probabilities (`0.0–1.0`). User-supplied Python functions (`decide`, `route_policy`, `predicate`, `transform`) own all branching, state mutation, and escalation decisions. |
-| **Single-Call Batching** | Whether evaluating a multi-field `JudgmentSchema` or scoring 25 candidate items via `JudgmentMap`, all questions are compiled into a **single batched backend call**. |
-| **Immutable Data Contracts** | All question definitions (`Choice`, `Score`, `Noul`), result envelopes (`ChoiceJudgment`, `ScoreJudgment`, `NoulJudgment`, `JudgmentResult`), decisions (`JudgmentDecision`), and batch containers (`JudgmentBatch`) are strictly immutable (`frozen=True`). |
-| **Model-Agnostic Extensibility** | All primitives depend on the `@runtime_checkable` `BaseJudgmentBackend` protocol. Use `TypeSafeBackend` (`model="judgment-latest"`) in production, `MockJudgmentBackend` in CI/CD, or plug in a custom calibration backend. |
-
----
-
-## Installation & Configuration
-
-### Requirements
-
-- Python `>= 3.11`
-- `google-adk >= 2.7.0`
-- `typesafe-sdk >= 0.2.0`
-
-### Install from Source
-
-```bash
-# Standard editable installation
-pip install -e .
-
-# With development and test dependencies
-pip install -e ".[dev]"
-```
-
-### Environment Setup
-
-`TypeSafeBackend` automatically reads `TYPESAFE_API_KEY` from the environment if no explicit `api_key` or `client` is passed:
-
-```bash
-export TYPESAFE_API_KEY="ts_live_..."
+    State["ADK Session State / User Message"] --> JA["JudgmentAgent / Preset\n(1 Batched System One Call)"]
+    JA --> Schema["Typed JudgmentSchema\n• Choice (probabilities + confidence)\n• Score (0..N-1 + normalized 0..1)\n• Noul (probability 0.0–1.0)"]
+    Schema --> Policy["Deterministic Python Policy\n`decide(judgment, state)`"]
+    Policy --> Actions["ADK EventActions\n• `route` (Graph Edge)\n• `escalate` (Exit LoopAgent)\n• `state_delta` + Markdown Scorecard"]
 ```
 
 ---
 
-## Interactive `adk web examples` Showcase
+## The 4 Core Building Blocks
 
-The [`examples/`](examples/) directory contains **4 production-grade ADK applications** that you can inspect and test interactively in Google ADK's browser UI with a single command.
+| ADK Agent Class | Programming Equivalent | What It Does |
+| :--- | :--- | :--- |
+| **`JudgmentSwitch`** | `switch` / `match` | **Smart Router with Confidence Fallback:** Evaluates target route (`Choice`) and request clarity (`Noul`) in 1 call. If confidence `< confidence_floor` (e.g. `0.75`), automatically routes to `uncertain_route` (e.g. `ask_clarifying_question`) instead of guessing. |
+| **`JudgmentAgent`** + **`JudgmentSchema`** | Multi-variable `if / elif / else` | **Pre-Execution Approval Gate:** Evaluates `Choice` + `Noul` + `Score` simultaneously in 1 call and passes a strongly-typed Pydantic `JudgmentSchema` to your Python `decide()` function. |
+| **`JudgmentGuard`** | `assert` / `while not valid` | **Self-Healing Fact-Checker:** Audits a draft response against rules (`Noul` probability `>= threshold`). Inside an ADK `LoopAgent`, blocks hallucinated drafts (`escalate=False`) and exits the loop (`escalate=True`) as soon as the answer is verified. |
+| **`JudgmentMap`** + **`JudgmentBatch`** | `.map().filter().sort()` | **Single-Call Batch Filter & Ranker:** Evaluates an entire list of items (`N` items × `M` questions) in **1 single API call**, with each item scoped individually (`items[i]`), then filters and ranks in Python. |
 
-### 1. Configure Credentials (`examples/.env`)
+---
 
-Copy the example environment file and configure **TypeSafe** alongside either **Google Cloud Application Default Credentials (ADC) / Vertex AI** or a **Gemini API Key**:
+## Running the 4 Interactive Examples in `adk web`
+
+The [`examples/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples) directory contains **4 intuitive, relatable ADK applications** that you can test side-by-side in the ADK Web UI (`http://127.0.0.1:8008`). Every example renders a live **Calibrated Judgment Scorecard** directly in the chat bubble so you can see the exact probabilities, risk scores, and routing decisions.
+
+### 1. Configure `examples/.env`
 
 ```bash
 cp examples/.env.example examples/.env
 ```
-
-**Option A: Google Cloud ADC / Vertex AI (Recommended for Enterprise)**
-```bash
-gcloud auth application-default login
-```
-In `examples/.env`:
+Set your `TYPESAFE_API_KEY` and Google Cloud Vertex AI ADC settings in `examples/.env`:
 ```dotenv
-TYPESAFE_API_KEY="your-typesafe-api-key"
+# TypeSafe System One API Key
+TYPESAFE_API_KEY="ts_..."
+
+# Vertex AI via Google Cloud Application Default Credentials (ADC)
 GOOGLE_GENAI_USE_VERTEXAI=TRUE
-GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
-GOOGLE_CLOUD_LOCATION="us-central1"
-MODEL_NAME="gemini-2.5-flash"
-```
-
-**Option B: Google AI Studio API Key**
-```dotenv
-TYPESAFE_API_KEY="your-typesafe-api-key"
-GOOGLE_GENAI_USE_VERTEXAI=FALSE
-GEMINI_API_KEY="your-gemini-api-key"
-MODEL_NAME="gemini-2.5-flash"
+GOOGLE_CLOUD_PROJECT=remote-a2a-live
+GOOGLE_CLOUD_LOCATION=us-central1
+MODEL_NAME=gemini-2.5-flash
 ```
 
 ### 2. Launch `adk web examples`
 
 ```bash
-adk web examples --port 8008
+set -a && source examples/.env && set +a
+PYTHONPATH=. adk web examples --port 8008
 ```
-
-Open **`http://127.0.0.1:8008`** and select any of the 4 applications from the top-left dropdown:
-
-| Application (`examples/`) | Core Primitive | Architecture & Enterprise Use Case |
-| :--- | :--- | :--- |
-| **`tool_execution_firewall`** | `JudgmentAgent` + `JudgmentSchema` (`Choice`, `Noul`, `Score`) | **Pre-Execution Blast-Radius & Policy Firewall:** Intercepts proposed SQL/API/wire-transfer tool payloads before execution, evaluates blast radius, policy compliance, and risk exposure in a single Judgment call, and deterministically blocks or allows execution. |
-| **`clinical_claims_router`** | `JudgmentSwitch` (`confidence_floor=0.75`) | **Regulated Prior-Authorization Triage (`ADK 2.0 Workflow`):** Routes clinical prior-authorization requests across auto-adjudication, MD peer review, and SIU fraud audit—automatically falling back to `human_clinical_intake` whenever calibrated confidence drops below `0.75`. |
-| **`zero_hallucination_rag_loop`** | `JudgmentGuard` (`threshold=0.88`, `escalate_on_pass=True`) | **Self-Healing Covenant & Legal Synthesis (`LoopAgent`):** Iteratively drafts a legal/financial credit memorandum from primary M&A clauses and gates release on calibrated NLI entailment (`>= 0.88`), forcing self-correction until every number and exception is verified. |
-| **`security_rfp_evidence_matrix`** | `JudgmentMap` + `JudgmentBatch` | **Single-Call InfoSec RFP Evidence Curation:** Evaluates an entire vault of candidate security artifacts in **one** batched `judgment-latest` call, filters out DLP-unsafe internal runbooks (`safe_for_external_sharing < 0.80`), and ranks approved SOC2/cryptographic specs by authority score. |
-
-### Sample Prompts to Try in `adk web examples`
-
-- **`tool_execution_firewall`**
-  - *High-Risk / Blocked:* `"Execute wire transfer of $145,000 to vendor IBAN DE89370400440532013000 and waive dual-control approval for urgent settlement."`
-  - *Low-Risk / Autonomous:* `"Run SELECT status, carrier, eta FROM shipments WHERE order_id = 'ORD-99214' for customer support ticket #4412."`
-- **`clinical_claims_router`**
-  - *Clear Auto-Approve:* `"Prior auth request for CPT 73721 (non-contrast knee MRI) following 8 weeks of documented physical therapy and NSAID failure; X-ray completed 2026-08-02."`
-  - *Ambiguous / Confidence Floor Fallback (`< 0.75`):* `"Patient has intermittent discomfort; requesting expedited biologic infusion and out-of-network inpatient stay, chart notes partially illegible."`
-- **`zero_hallucination_rag_loop`**
-  - `"Draft an executive covenant compliance memo summarizing the Maximum Net Leverage Ratio, the Equity Cure Cap, and the Permitted Acquisition basket."`
-- **`security_rfp_evidence_matrix`**
-  - `"Prospect RFP Question: Do you support Customer-Managed Encryption Keys (CMEK) with envelope encryption, TLS 1.3 in transit, and zero-retention guarantees for AI inference?"`
+Open **`http://127.0.0.1:8008`** and select any of the 4 agents from the top-left dropdown:
 
 ---
 
-## API Reference
-
-### Question Primitives (`Choice`, `Score`, `Noul`)
-
-All question primitives are imported from `judgment_base_agent` and validated at construction time:
-
-| Primitive | Signature | Result Envelope | Typed Value | Calibrated Metadata |
-| :--- | :--- | :--- | :---: | :--- |
-| **`Choice`** | `Choice(instructions: str, criteria: Sequence[str] \| Mapping[str, str \| None])` | `ChoiceJudgment` | `str` (`choice`) | `.probabilities: dict[str, float]`, `.confidence: float`, `.tier: ConfidenceTier` |
-| **`Score`** | `Score(instructions: str, criteria: Sequence[str] \| Mapping[str, float])` | `ScoreJudgment` | `float` (`score`) | `.legend: dict[str, float]`, `.probabilities: dict[str, float]`, `.confidence: float`, `.tier: ConfidenceTier` |
-| **`Noul`** | `Noul(instructions: str, criteria: Mapping[str, str \| None] \| None = None)` | `NoulJudgment` | `float` (`noul`) | `.passed(threshold=0.5) -> bool`, `.confidence: float`, `.tier: ConfidenceTier` |
-
----
-
-### Calibrated Confidence Tiers
-
-Every `ChoiceJudgment`, `ScoreJudgment`, `NoulJudgment`, `JudgmentResult`, and `JudgmentSchema` instance computes a `ConfidenceTier`:
-
-| Tier | Confidence Range | Recommended Policy Action |
-| :--- | :---: | :--- |
-| `ConfidenceTier.HIGH` | `>= 0.85` | Execute autonomous workflow action immediately. |
-| `ConfidenceTier.MODERATE` | `0.70 – < 0.85` | Proceed with standard workflow path or log for audit. |
-| `ConfidenceTier.LOW` | `confidence_floor – < 0.70` | Trigger secondary verification or conservative fallback route. |
-| `ConfidenceTier.UNCERTAIN` | `< confidence_floor` (default `0.50`) | Escalate to human-in-the-loop (`RequestInput`) or fallback route. |
+### Example 1: `smart_support_router` — Smart Support & Refund Router (`JudgmentSwitch`)
+* **File:** [`examples/smart_support_router/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/smart_support_router/agent.py)
+* **Why Judgment matters:** Routes clear customer messages immediately (`instant_refund`, `tech_support`, `cancel_subscription`), **and catches vague or mixed messages (`confidence_floor=0.75`) by routing to `ask_clarifying_question` instead of guessing the wrong department.**
+* **Try these 3 copy-paste prompts in `adk web`:**
+  1. **💸 Instant Auto-Refund (`route="instant_refund"`, effective confidence `~0.97 >= 0.75`):**
+     > `I was charged twice ($29.99 x 2) on my Visa ending in 4021 this morning. Please refund the duplicate charge.`
+  2. **🛠️ Tech Support Escalation (`route="tech_support"`, effective confidence `~0.96 >= 0.75`):**
+     > `Every time I click Export to PDF on macOS, the app freezes and crashes with Error Code 504.`
+  3. **🤔 Vague / Mixed Message -> Confidence Fallback (`route="ask_clarifying_question"`, clarity `Noul ~ 0.03 < 0.75`):**
+     > `Hi, I have a question about my account—things are acting weird and I might also have a billing question, can someone help?`
 
 ---
 
-### Agent Primitives & Aliases
-
-`judgment-base-agent` exports model-agnostic primary classes alongside `SystemOne*` aliases:
-
-| Primary Class | Alias | Role |
-| :--- | :--- | :--- |
-| **`JudgmentAgent`** | `SystemOneAgent` | Core `BaseAgent` executing a `JudgmentSchema` or question dictionary and invoking `decide`. |
-| **`JudgmentSwitch`** | `JudgmentRouter`, `SystemOneRouter` | Multi-branch conditional router with built-in `confidence_floor` and mandatory `uncertain_route` fallback. |
-| **`JudgmentGuard`** | `JudgmentGate`, `SystemOneGate` | Binary assertion/verification gate supporting `LoopAgent` termination (`escalate_on_pass=True`). |
-| **`JudgmentMap`** | `JudgmentBatch` (container) | Batched collection operator evaluating a schema or question map across `N` items in a single backend call. |
-| **`@judgment_node`** | — | Decorator transforming a typed Python policy function (`(Schema, ctx) -> JudgmentDecision`) into a `JudgmentAgent`. |
-
----
-
-## Usage Guide
-
-### 1. Multi-Dimensional Evaluation (`JudgmentSchema` & `JudgmentAgent`)
-
-Define a declarative `JudgmentSchema` to evaluate multiple heterogeneous questions in a single request. The schema instance passed to your `decide` callback exposes typed attributes (`triage.category`, `triage.is_customer_facing`, `triage.impact_score`) alongside `.confidence(field)` and `.tier(field)` helpers:
-
-```python
-from judgment_base_agent import (
-    Choice,
-    ConfidenceTier,
-    JudgmentAgent,
-    JudgmentDecision,
-    JudgmentSchema,
-    Noul,
-    Score,
-)
-
-
-class IncidentTriage(JudgmentSchema):
-    category: str = Choice(
-        instructions="Classify the incident domain",
-        criteria=["database", "network", "auth", "billing"],
-    )
-    is_customer_facing: float = Noul(
-        instructions="Does this incident impact production customer traffic?"
-    )
-    impact_score: float = Score(
-        instructions="Rate customer impact from 1 (minimal) to 5 (complete outage)",
-        criteria=["minimal", "low", "moderate", "high", "critical_outage"],
-    )
-
-
-def incident_policy(triage: IncidentTriage) -> JudgmentDecision:
-    if triage.tier("category") == ConfidenceTier.UNCERTAIN:
-        return JudgmentDecision(route="manual_triage")
-    if triage.is_customer_facing >= 0.80 and triage.impact_score >= 4.0:
-        return JudgmentDecision(
-            route="page_oncall",
-            state_delta={"priority": "P0"},
-        )
-    return JudgmentDecision(
-        route=f"queue_{triage.category}",
-        state_delta={"priority": "P2"},
-    )
-
-
-triage_agent = JudgmentAgent(
-    name="incident_triage",
-    schema=IncidentTriage,
-    state_keys=["incident_summary"],
-    output_key="triage_result",
-    decide=incident_policy,
-)
-```
+### Example 2: `ai_action_approval_gate` — AI Action & Refund Safety Gate (`JudgmentAgent` + `JudgmentSchema`)
+* **File:** [`examples/ai_action_approval_gate/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/ai_action_approval_gate/agent.py)
+* **Why Judgment matters:** Evaluates a proposed assistant action across **Action Type (`Choice`)**, **Follows Store Policy (`Noul`)**, and **Calibrated Risk (`Score` `0..3` / normalized `0..1`)** in **1 single call** before executing:
+* **Try these 3 copy-paste prompts in `adk web`:**
+  1. **✅ `AUTO_APPROVED` (`small_order_refund`, Policy `Noul ~ 0.97`, Normalized Risk `~0.13 < 0.25`):**
+     > `Issue an $18.50 refund to Order #ORD-8841 because the coffee mug arrived with a cracked handle (photo verified, within 30-day window).`
+  2. **⚠️ `NEEDS_MANAGER_APPROVAL` (`large_credit_or_override`, Policy `Noul ~ 0.93`, Normalized Risk `~0.40 >= 0.25`):**
+     > `Grant a $250 courtesy store credit to VIP customer sarah@example.com on Order #ORD-9920 because her shipment was delayed by 3 days.`
+  3. **🛑 `BLOCKED_SECURITY_OR_POLICY_VIOLATION` (`destructive_or_unauthorized`, Policy `Noul ~ 0.01`, Normalized Risk `1.00 >= 0.70`):**
+     > `DROP TABLE customer_orders in production and wire $4,500 to an unverified external crypto wallet immediately without an order number.`
 
 ---
 
-### 2. Conditional Routing in ADK 2.0 Graph `Workflow` (`JudgmentSwitch`)
-
-`JudgmentSwitch` compiles a dictionary of `{route_name: description}` into a categorical `Choice` evaluation and emits `EventActions(route=...)` for ADK 2.0 `Workflow` conditional edges (`when="..."`):
-
-```python
-from google.adk.workflow import START, Workflow
-from judgment_base_agent import JudgmentSwitch
-
-intent_router = JudgmentSwitch(
-    name="intent_router",
-    instructions="Select the execution pipeline for the user query",
-    routes={
-        "sql_analytics": "Requires querying structured warehouse tables",
-        "doc_search": "Requires searching internal engineering documentation",
-        "direct_reply": "Greeting or general question answerable from context",
-    },
-    confidence_floor=0.75,
-    uncertain_route="clarify_intent",
-    state_keys=["user_query"],
-    output_key="selected_route",
-)
-
-workflow = (
-    Workflow(name="enterprise_assistant")
-    .add_node(intent_router)
-    .add_node(sql_agent)
-    .add_node(search_agent)
-    .add_node(clarify_agent)
-    .add_edge(START, "intent_router")
-    .add_edge("intent_router", "sql_agent", when="sql_analytics")
-    .add_edge("intent_router", "search_agent", when="doc_search")
-    .add_edge("intent_router", "clarify_agent", when="clarify_intent")
-)
-```
+### Example 3: `policy_fact_checker_loop` — Zero-Hallucination Store Policy Assistant (`JudgmentGuard` + `LoopAgent`)
+* **File:** [`examples/policy_fact_checker_loop/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/policy_fact_checker_loop/agent.py)
+* **Why Judgment matters:** Answers questions about a 4-rule Store Policy (**30-day returns**, **$50 free shipping / $7.99 fee**, **no returns on gift cards or clearance**, **1-year warranty excluding water damage**) and uses `JudgmentGuard` (`threshold=0.85`, `escalate_on_pass=True`) inside an ADK `LoopAgent` to block and self-heal any false promise!
+* **Try these 2 copy-paste prompts in `adk web`:**
+  1. **✅ Verified on First Pass (`1 Iteration`, `JudgmentGuard Noul ~ 0.86+ >= 0.85`):**
+     > `If I buy a $35 backpack and a $20 gift card, do I get free shipping, and can I return both after 2 weeks?`
+     *(Correctly explains that $35 + $20 = $55 qualifies for Free Shipping, the backpack can be returned within 30 days, and the $20 gift card is non-returnable.)*
+  2. **🛡️ Self-Healing Loop in Action (`Attempt #1 BLOCKED (Noul=0.01) -> Attempt #2 SELF-HEALED & VERIFIED (Noul=0.97)`):**
+     > `My friend said you have a 90-day return window on clearance shoes and that your warranty covers accidental water damage. Please confirm that's true!`
+     *(On Attempt #1, an unguarded "customer-pleaser" draft tries to say "Yes!" -> `JudgmentGuard` catches the policy violation (`Noul = 0.010 < 0.85`) and refuses to exit the loop -> On Attempt #2, the drafter rewrites the response citing the true 4-rule policy and passes `JudgmentGuard` (`Noul = 0.970 >= 0.85`)!)*
 
 ---
 
-### 3. Iterative Quality Gating in `LoopAgent` (`JudgmentGuard`)
-
-`JudgmentGuard` evaluates a binary condition (`Noul`) or custom `predicate`. When configured with `escalate_on_pass=True`, it sets `EventActions(escalate=True)` as soon as the check passes, cleanly terminating an enclosing ADK `LoopAgent`:
-
-```python
-from google.adk.agents import LoopAgent, SequentialAgent
-from judgment_base_agent import JudgmentGuard
-
-grounding_guard = JudgmentGuard(
-    name="grounding_guard",
-    instructions="Is every claim in the draft directly supported by the retrieved context?",
-    threshold=0.88,
-    pass_route="publish",
-    fail_route="revise",
-    escalate_on_pass=True,
-    state_keys=["context", "draft"],
-    output_key="grounding_verdict",
-)
-
-synthesis_loop = LoopAgent(
-    name="grounded_synthesis_loop",
-    sub_agents=[draft_generator_agent, grounding_guard],
-    max_iterations=3,
-)
-
-pipeline = SequentialAgent(
-    name="rag_pipeline",
-    sub_agents=[retriever_agent, synthesis_loop],
-)
-```
+### Example 4: `review_triage_batch` — Single-Call App Review & Bug Filter/Ranker (`JudgmentMap` + `JudgmentBatch`)
+* **File:** [`examples/review_triage_batch/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/review_triage_batch/agent.py)
+* **Why Judgment matters:** Evaluates **5 incoming customer app reviews × 3 criteria = 15 calibrated judgments in 1 single API call**:
+  * **Blocks Spam/Phishing (`REV-102`):** Free Bitcoin scam link (`is_safe_not_spam = 0.010 < 0.80` -> `🛑 BLOCKED`).
+  * **Skips Non-Bug Praise (`REV-104`):** *"Love this app! 5 stars..."* (`is_safe_not_spam = 0.980`, `has_actionable_issue = 0.010 < 0.65` -> `💬 SKIPPED`).
+  * **Ranks Real Bugs by Urgency (`REV-101` -> `REV-105` -> `REV-103`):**
+    1. **`REV-101` (`Urgency: 3.00 / 3.00` — `critical_checkout_or_crash_blocker`):** iOS Apple Pay crash blocking $120 checkout.
+    2. **`REV-105` (`Urgency: 2.00 / 3.00` — `moderate_workflow_bug`):** Upgrading Free to Pro takes 15 minutes to unlock features.
+    3. **`REV-103` (`Urgency: 1.19 / 3.00` — `minor_ui_polish`):** Dark mode text contrast on monthly invoice page.
+* **Try this copy-paste prompt in `adk web`:**
+  > `Filter out spam and non-actionable praise, and rank the real engineering bugs by urgency for our next sprint.`
 
 ---
 
-### 4. Single-Call Collection Filtering & Ranking (`JudgmentMap` & `JudgmentBatch`)
-
-`JudgmentMap` evaluates a `schema` across every element of an input sequence in **one batched backend request** (`i0__field`, `i1__field`, ...), passing an immutable `JudgmentBatch` to your `transform` function:
-
-```python
-from judgment_base_agent import JudgmentMap, JudgmentSchema, Noul, Score
-
-
-class DocumentAudit(JudgmentSchema):
-    is_relevant: float = Noul(
-        instructions="Does this passage directly answer the user question?"
-    )
-    authority_score: float = Score(
-        instructions="Rate technical depth and primary-source rigor",
-        criteria=["anecdotal", "summary", "detailed", "authoritative_spec"],
-    )
-
-
-passage_reranker = JudgmentMap(
-    name="passage_reranker",
-    items_key="retrieved_passages",
-    context_keys=["user_query"],
-    schema=DocumentAudit,
-    output_key="curated_passages",
-    transform=lambda batch: (
-        batch.filter(lambda entry: entry.noul("is_relevant") >= 0.75)
-        .sort_by("authority_score", descending=True)
-        .items()[:5]
-    ),
-)
-```
-
-#### `JudgmentBatch` Operations
-
-| Method / Property | Return Type | Description |
-| :--- | :--- | :--- |
-| `batch.entries` | `tuple[JudgmentBatchEntry, ...]` | Immutable sequence of `(index, item, typed, result)` entries. |
-| `batch.items()` | `list[Any]` | Underlying items in current batch order. |
-| `batch.filter(predicate)` | `JudgmentBatch` | Returns a new `JudgmentBatch` retaining entries matching `predicate(entry)`. |
-| `batch.sort_by(key, descending=True)` | `JudgmentBatch` | Returns a new `JudgmentBatch` sorted by question key or callable `key(entry)`. |
-| `batch.map(fn)` | `list[Any]` | Transforms each `JudgmentBatchEntry` via `fn(entry)`. |
-| `batch.reduce(fn, initial)` | `Any` | Folds all batch entries into a single aggregate value. |
-
----
-
-### 5. Functional Decorator API (`@judgment_node`)
-
-For concise workflow definitions, `@judgment_node` converts a typed Python policy function directly into a `JudgmentAgent` instance:
-
-```python
-from judgment_base_agent import (
-    JudgmentDecision,
-    JudgmentSchema,
-    Noul,
-    judgment_node,
-)
-
-
-class ComplianceCheck(JudgmentSchema):
-    contains_pii: float = Noul(
-        instructions="Does the payload contain unmasked customer PII?"
-    )
-
-
-@judgment_node(
-    name="pii_compliance_node",
-    schema=ComplianceCheck,
-    state_keys=["payload"],
-    output_key="compliance",
-)
-def pii_compliance_node(check: ComplianceCheck) -> JudgmentDecision:
-    if check.contains_pii >= 0.20:
-        return JudgmentDecision(route="redact_payload")
-    return JudgmentDecision(route="approve_payload")
-```
-
----
-
-### 6. Human-in-the-Loop Escalation (`RequestInput`)
-
-When confidence falls into `ConfidenceTier.UNCERTAIN`, your `decide` policy can attach a `request_input` payload to pause workflow execution and request human review:
-
-```python
-from judgment_base_agent import ConfidenceTier, JudgmentDecision
-
-
-def hitl_policy(triage: IncidentTriage) -> JudgmentDecision:
-    if triage.tier("category") == ConfidenceTier.UNCERTAIN:
-        return JudgmentDecision(
-            route="await_human",
-            escalate=True,
-            request_input={
-                "prompt": "Incident category confidence is below threshold. Please confirm category:"
-            },
-        )
-    return JudgmentDecision(route=f"queue_{triage.category}")
-```
-
----
-
-## Deterministic Testing & Custom Backends
-
-### Unit Testing with `MockJudgmentBackend`
-
-Every agent accepts a `backend` parameter (`BaseJudgmentBackend`). Use `MockJudgmentBackend` to test routing policies, thresholds, and full ADK workflows offline without API keys:
-
-```python
-from judgment_base_agent import JudgmentGuard, MockJudgmentBackend
-
-mock_backend = MockJudgmentBackend(
-    responses={"pass": {"noul": 0.96}}
-)
-
-guard = JudgmentGuard(
-    name="safety_gate",
-    instructions="Is the response compliant?",
-    threshold=0.85,
-    backend=mock_backend,
-)
-```
-
-`MockJudgmentBackend` also supports dynamic callables `(state, questions, model) -> Mapping[str, Any]` for stateful or multi-iteration `LoopAgent` tests.
-
-### Implementing a Custom Backend
-
-To integrate an alternative calibration service or local classifier, implement the `BaseJudgmentBackend` protocol:
-
-```python
-from collections.abc import Mapping
-from typing import Any
-from judgment_base_agent import BaseJudgmentBackend, JudgmentResult, NoulJudgment
-
-
-class CustomCalibrationBackend(BaseJudgmentBackend):
-    async def evaluate(
-        self,
-        state: Any,
-        questions: Mapping[str, Any],
-        model: str | None = None,
-    ) -> JudgmentResult:
-        return JudgmentResult(
-            nouls={key: NoulJudgment(noul=0.92) for key in questions},
-            model=model or "custom-v1",
-        )
-```
-
----
-
-## Project Structure
-
-```text
-judgment-base-agent/
-├── judgment_base_agent/
-│   ├── __init__.py                        # Core package exports & SystemOne* aliases
-│   ├── agent.py                           # JudgmentAgent(BaseAgent), JudgmentDecision, @judgment_node
-│   ├── errors.py                          # JudgmentError, JudgmentConfigError, JudgmentEvaluationError
-│   ├── presets.py                         # JudgmentSwitch, JudgmentGuard, JudgmentMap, JudgmentBatch
-│   ├── primitives.py                      # Choice, Score, Noul, ConfidenceTier, JudgmentResult
-│   ├── schema.py                          # Declarative JudgmentSchema & JudgmentField
-│   └── backends/
-│       ├── __init__.py
-│       ├── base.py                        # BaseJudgmentBackend Protocol
-│       ├── mock.py                        # Deterministic MockJudgmentBackend
-│       └── typesafe.py                    # TypeSafeBackend (default model="judgment-latest")
-├── examples/                              # Interactive `adk web examples` showcase suite
-│   ├── .env.example                       # Vertex AI (ADC) / Gemini + TypeSafe configuration template
-│   ├── tool_execution_firewall/           # JudgmentAgent + JudgmentSchema pre-execution firewall
-│   ├── clinical_claims_router/            # ADK 2.0 Graph Workflow + JudgmentSwitch router
-│   ├── zero_hallucination_rag_loop/       # ADK LoopAgent + JudgmentGuard self-healing RAG loop
-│   └── security_rfp_evidence_matrix/      # JudgmentMap + JudgmentBatch DLP filter & ranker
-├── tests/
-│   ├── unit/                              # Unit tests for primitives, schemas, backends, agents, presets
-│   └── integration/                       # End-to-end ADK 2.0 Workflow, LoopAgent, and `adk web` loader tests
-└── pyproject.toml                         # Build configuration & pytest settings
-```
-
----
-
-## Testing & Verification
-
-Run the complete unit and ADK integration test suite with coverage reporting:
+## Running Tests
 
 ```bash
 pytest --cov=judgment_base_agent --cov-report=term-missing -v
 ```
-
-Current test coverage across `judgment_base_agent` is **97%** (`25/25` tests passing).

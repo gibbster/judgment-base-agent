@@ -1,14 +1,21 @@
-"""Integration tests verifying `adk web examples` discovers and loads all 4 example apps."""
+"""Integration tests verifying the 4 `examples/` applications load in ADK and produce deterministic outcomes."""
 
 from __future__ import annotations
 
-import importlib
-
-import pytest
 from google.adk.cli.utils.agent_loader import AgentLoader
-from google.adk.runners import InMemoryRunner
-from google.genai import types
+import pytest
 
+from examples.ai_action_approval_gate.agent import (
+    ActionApprovalSchema,
+    approval_policy,
+)
+from examples.policy_fact_checker_loop.agent import policy_fact_guard
+from examples.review_triage_batch.agent import (
+    INCOMING_APP_REVIEWS,
+    ReviewEvaluationSchema,
+    filter_and_rank_reviews,
+)
+from examples.smart_support_router.agent import support_router_switch
 from judgment_base_agent import (
     ChoiceJudgment,
     JudgmentBatch,
@@ -20,127 +27,145 @@ from judgment_base_agent import (
 )
 
 
-def test_adk_web_agent_loader_discovers_all_example_apps() -> None:
-    """Verify `adk web examples` lists and loads all 4 showcase applications."""
+def test_adk_agent_loader_discovers_all_four_examples() -> None:
+    """Verify `adk web examples` discovers and loads all 4 example root_agents."""
     loader = AgentLoader("examples")
-    agent_names = loader.list_agents()
-    assert agent_names == [
-        "clinical_claims_router",
-        "security_rfp_evidence_matrix",
-        "tool_execution_firewall",
-        "zero_hallucination_rag_loop",
-    ]
-
-    detailed = loader.list_agents_detailed()
-    assert len(detailed) == 4
-    root_names = {item["root_agent_name"] for item in detailed}
-    assert root_names == {
-        "tool_execution_firewall",
-        "clinical_claims_router",
-        "zero_hallucination_rag_loop",
-        "security_rfp_evidence_matrix",
+    agents = loader.list_agents()
+    expected = {
+        "smart_support_router",
+        "ai_action_approval_gate",
+        "policy_fact_checker_loop",
+        "review_triage_batch",
     }
+    assert set(agents) == expected
+    for name in expected:
+        loaded = loader.load_agent(name)
+        assert loaded is not None
 
 
 @pytest.mark.asyncio
-async def test_example_tool_execution_firewall_policy() -> None:
-    """Verify the ActionRiskSchema and firewall_policy in tool_execution_firewall."""
-    mod = importlib.import_module("examples.tool_execution_firewall.agent")
-
-    high_risk_raw = JudgmentResult(
-        choices={
-            "blast_radius": ChoiceJudgment.from_raw(
-                choice="high_value_financial",
-                probabilities={"high_value_financial": 0.94, "read_only": 0.02},
-                confidence=0.94,
-            )
-        },
-        nouls={
-            "policy_compliant": NoulJudgment(noul=0.12),
-        },
-        scores={
-            "risk_exposure": ScoreJudgment.from_raw(
-                score=0.92,
-                confidence=0.92,
-            )
-        },
+async def test_example_1_smart_support_router_switch_and_fallback() -> None:
+    """Verify `support_router_switch` routes clear messages and falls back when clarity Noul < 0.75."""
+    clear_backend = MockJudgmentBackend(
+        responses={
+            "route": ChoiceJudgment.from_raw(
+                choice="instant_refund",
+                probabilities={"instant_refund": 0.98, "tech_support": 0.01, "cancel_subscription": 0.01},
+                confidence=0.98,
+            ),
+            "is_clear_and_specific": 0.97,
+        }
     )
-    risk = mod.ActionRiskSchema.from_result(high_risk_raw)
-    decision = mod.firewall_policy(risk, {})
-    assert decision.branch == "quarantine"
-    assert decision.escalate is True
-    assert decision.state_updates["firewall_verdict"] == "BLOCKED_FOR_VP_APPROVAL"
+    object.__setattr__(support_router_switch, "backend", clear_backend)
+    typed_clear = await support_router_switch._evaluate_core({}, "Duplicate charge refund")
+    dec_clear = support_router_switch._invoke_decide(typed_clear, {}, "Duplicate charge refund")
+    assert dec_clear.route == "instant_refund"
+
+    vague_backend = MockJudgmentBackend(
+        responses={
+            "route": ChoiceJudgment.from_raw(
+                choice="tech_support",
+                probabilities={"tech_support": 0.95, "instant_refund": 0.05},
+                confidence=0.95,
+            ),
+            "is_clear_and_specific": 0.03,
+        }
+    )
+    object.__setattr__(support_router_switch, "backend", vague_backend)
+    typed_vague = await support_router_switch._evaluate_core({}, "Vague mixed request")
+    dec_vague = support_router_switch._invoke_decide(typed_vague, {}, "Vague mixed request")
+    assert dec_vague.route == "ask_clarifying_question"
+
+
+def test_example_2_ai_action_approval_gate_policy_outcomes() -> None:
+    """Verify `approval_policy` maps low, moderate, and critical risks to the 3 expected verdicts."""
+    low_risk = ActionApprovalSchema(
+        action_type=ChoiceJudgment.from_raw("small_order_refund", confidence=1.0),
+        follows_policy=NoulJudgment(noul=0.97),
+        risk_level=ScoreJudgment.from_raw(
+            score=0.38,
+            legend={"0": "low_safe_risk", "1": "moderate_manager_risk", "2": "high_risk", "3": "critical_security_risk"},
+        ),
+    )
+    dec_auto = approval_policy(low_risk, {})
+    assert dec_auto.output["approval_verdict"] == "AUTO_APPROVED"
+    assert dec_auto.route == "auto_approved"
+
+    med_risk = ActionApprovalSchema(
+        action_type=ChoiceJudgment.from_raw("large_credit_or_override", confidence=1.0),
+        follows_policy=NoulJudgment(noul=0.93),
+        risk_level=ScoreJudgment.from_raw(
+            score=1.19,
+            legend={"0": "low_safe_risk", "1": "moderate_manager_risk", "2": "high_risk", "3": "critical_security_risk"},
+        ),
+    )
+    dec_mgr = approval_policy(med_risk, {})
+    assert dec_mgr.output["approval_verdict"] == "NEEDS_MANAGER_APPROVAL"
+    assert dec_mgr.route == "manager_approval"
+
+    high_risk = ActionApprovalSchema(
+        action_type=ChoiceJudgment.from_raw("destructive_or_unauthorized", confidence=1.0),
+        follows_policy=NoulJudgment(noul=0.01),
+        risk_level=ScoreJudgment.from_raw(
+            score=3.00,
+            legend={"0": "low_safe_risk", "1": "moderate_manager_risk", "2": "high_risk", "3": "critical_security_risk"},
+        ),
+    )
+    dec_block = approval_policy(high_risk, {})
+    assert dec_block.output["approval_verdict"] == "BLOCKED_SECURITY_OR_POLICY_VIOLATION"
+    assert dec_block.escalate is True
 
 
 @pytest.mark.asyncio
-async def test_example_security_rfp_evidence_matrix_transform() -> None:
-    """Verify the DLP filtering and authority ranking in security_rfp_evidence_matrix."""
-    mod = importlib.import_module("examples.security_rfp_evidence_matrix.agent")
+async def test_example_3_policy_fact_checker_guard() -> None:
+    """Verify `policy_fact_guard` rejects ungrounded promises (< 0.85) and escalates on valid replies (>= 0.85)."""
+    fail_backend = MockJudgmentBackend(responses={"guard": 0.01})
+    object.__setattr__(policy_fact_guard, "backend", fail_backend)
+    res_fail = await policy_fact_guard._evaluate_core({"store_policy": "30 days", "draft_reply": "90 days"}, None)
+    dec_fail = policy_fact_guard._invoke_decide(res_fail, {}, None)
+    assert dec_fail.route == "fail"
+    assert dec_fail.escalate is False
 
-    def _make_entry(
-        idx: int,
-        doc_id: str,
-        title: str,
-        answers_prob: float,
-        dlp_safe_prob: float,
-        strength_score: float,
-    ) -> JudgmentBatchEntry:
-        raw = JudgmentResult(
-            nouls={
-                "answers_requirement": NoulJudgment(noul=answers_prob),
-                "safe_for_external_sharing": NoulJudgment(noul=dlp_safe_prob),
-            },
-            scores={
-                "evidence_strength": ScoreJudgment.from_raw(
-                    score=strength_score,
-                    confidence=0.90,
-                )
-            },
+    pass_backend = MockJudgmentBackend(responses={"guard": 0.92})
+    object.__setattr__(policy_fact_guard, "backend", pass_backend)
+    res_pass = await policy_fact_guard._evaluate_core({"store_policy": "30 days", "draft_reply": "30 days"}, None)
+    dec_pass = policy_fact_guard._invoke_decide(res_pass, {}, None)
+    assert dec_pass.route == "pass"
+    assert dec_pass.escalate is True
+
+
+def test_example_4_review_triage_batch_filter_and_rank() -> None:
+    """Verify `filter_and_rank_reviews` blocks spam, skips generic praise, and ranks bugs by urgency."""
+    legend = {
+        "0": "none_or_praise",
+        "1": "minor_ui_polish",
+        "2": "moderate_workflow_bug",
+        "3": "critical_checkout_or_crash_blocker",
+    }
+    sim_data = [
+        (0.98, 0.98, 3.00),  # REV-101: Apple Pay crash
+        (0.01, 0.01, 0.23),  # REV-102: Crypto spam
+        (0.99, 0.98, 1.19),  # REV-103: Dark mode contrast
+        (0.98, 0.01, 0.00),  # REV-104: 5-star praise
+        (0.98, 0.97, 2.00),  # REV-105: Pro sync delay
+    ]
+    entries = []
+    for idx, (item, (safe_p, act_p, urg_s)) in enumerate(zip(INCOMING_APP_REVIEWS, sim_data)):
+        j = ReviewEvaluationSchema(
+            is_safe_not_spam=NoulJudgment(noul=safe_p),
+            has_actionable_issue=NoulJudgment(noul=act_p),
+            urgency_score=ScoreJudgment.from_raw(score=urg_s, legend=legend),
         )
-        return JudgmentBatchEntry(
-            index=idx,
-            item={"id": doc_id, "title": title, "snippet": f"Snippet {idx}"},
-            judgment=mod.ArtifactAuditSchema.from_result(raw),
-            raw_result=raw,
+        entries.append(
+            JudgmentBatchEntry(
+                index=idx,
+                item=item,
+                judgment=j,
+                raw_result=JudgmentResult(),
+            )
         )
-
-    batch = JudgmentBatch(
-        entries=(
-            _make_entry(
-                0,
-                "INTERNAL-DEBUG-RUNBOOK-09",
-                "Staging KMS Break-Glass Runbook",
-                0.91,
-                0.05,  # unsafe for external sharing -> must be filtered out
-                0.95,
-            ),
-            _make_entry(
-                1,
-                "SOC2-CC6.1-KMS",
-                "SOC2 Type II — Encryption at Rest & Envelope KMS Architecture",
-                0.96,
-                0.98,
-                0.94,
-            ),
-            _make_entry(
-                2,
-                "CRYPTO-SPEC-2026",
-                "Customer-Managed Encryption Keys (CMEK) Technical Whitepaper",
-                0.92,
-                0.95,
-                0.99,
-            ),
-        ),
-        global_result=JudgmentResult(
-            nouls={"holistic_sufficiency": NoulJudgment(noul=0.93)}
-        ),
-    )
-
-    state = {"rfp_requirement": "Do you support CMEK with envelope encryption?"}
-    curated = mod.curate_rfp_evidence(batch, state)
-    assert curated["dlp_blocked_count"] == 1
-    assert curated["approved_count"] == 2
-    # CRYPTO-SPEC-2026 has strength_score 0.99 > SOC2-CC6.1-KMS (0.94)
-    assert curated["top_citations"][0]["id"] == "CRYPTO-SPEC-2026"
-    assert curated["top_citations"][1]["id"] == "SOC2-CC6.1-KMS"
-    assert curated["holistic_sufficiency_noul"] == pytest.approx(0.93)
+    batch = JudgmentBatch(entries=tuple(entries))
+    result = filter_and_rank_reviews(batch)
+    assert result["spam_blocked_ids"] == ["REV-102"]
+    assert result["praise_skipped_ids"] == ["REV-104"]
+    assert [b["id"] for b in result["prioritized_bugs"]] == ["REV-101", "REV-105", "REV-103"]

@@ -18,7 +18,7 @@ from judgment_base_agent.agent import (
 from judgment_base_agent.backends.base import BaseJudgmentBackend
 from judgment_base_agent.backends.typesafe import TypeSafeBackend
 from judgment_base_agent.errors import JudgmentConfigError
-from judgment_base_agent.primitives import Choice, JudgmentResult, Noul
+from judgment_base_agent.primitives import Choice, JudgmentResult, Noul, Score
 from judgment_base_agent.schema import JudgmentSchema
 
 TItem = TypeVar("TItem")
@@ -74,6 +74,8 @@ class JudgmentSwitch(JudgmentAgent):
             raw_res = res.raw_result if isinstance(res, JudgmentSchema) and res.raw_result else res
             selected = raw_res.choice(route_key)
             conf = raw_res.confidence(route_key)
+            if raw_res.nouls:
+                conf = min(conf, min(n.noul for n in raw_res.nouls.values()))
             if confidence_floor is not None and conf < confidence_floor:
                 chosen_route = uncertain_route
             else:
@@ -301,6 +303,25 @@ class JudgmentBatch(Generic[TItem, TJudgment]):
         }
 
 
+def _scope_question_to_item(q_obj: Any, idx: int, serialized_item: Any) -> Any:
+    """Prefix per-item batched question instructions with the specific item context."""
+    item_summary = str(serialized_item)
+    if len(item_summary) > 240:
+        item_summary = item_summary[:237] + "..."
+    prefix = f"Evaluate ONLY items[{idx}] ({item_summary}): "
+    if isinstance(q_obj, Choice):
+        return Choice(instructions=prefix + q_obj.instructions, criteria=q_obj.criteria)
+    if isinstance(q_obj, Score):
+        return Score(instructions=prefix + q_obj.instructions, criteria=q_obj.criteria)
+    if isinstance(q_obj, Noul):
+        return Noul(instructions=prefix + q_obj.instructions, criteria=q_obj.criteria)
+    if isinstance(q_obj, Mapping) and "instructions" in q_obj:
+        copied = dict(q_obj)
+        copied["instructions"] = prefix + str(copied["instructions"])
+        return copied
+    return q_obj
+
+
 class JudgmentMap(JudgmentAgent):
     """Universal collection primitive (Map / Filter / Rank / Reduce) executing in one batched call."""
 
@@ -398,6 +419,12 @@ class JudgmentMap(JudgmentAgent):
         )
 
         for idx, item in enumerate(items):
+            serialized_item = (
+                self.item_state_builder(item, idx, session_state)
+                if self.item_state_builder is not None
+                else _serialize_output(item)
+            )
+            serialized_items.append(serialized_item)
             per_item_qs = (
                 base_schema_questions
                 if base_schema_questions is not None
@@ -406,14 +433,11 @@ class JudgmentMap(JudgmentAgent):
             key_map: dict[str, str] = {}
             for field_key, q_obj in per_item_qs.items():
                 namespaced_key = f"item_{idx}__{field_key}"
-                batched_questions[namespaced_key] = q_obj
+                batched_questions[namespaced_key] = _scope_question_to_item(
+                    q_obj, idx, serialized_item
+                )
                 key_map[field_key] = namespaced_key
             item_q_keys.append(key_map)
-            serialized_items.append(
-                self.item_state_builder(item, idx, session_state)
-                if self.item_state_builder is not None
-                else _serialize_output(item)
-            )
 
         resolved_global: dict[str, Any] = {}
         if self.global_questions is not None:

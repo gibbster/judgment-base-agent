@@ -118,6 +118,12 @@ class ScoreJudgment(BaseModel):
     confidence: float = 1.0
     confidence_tier: ConfidenceTier = "high"
 
+    @property
+    def normalized_score(self) -> float:
+        """Return score normalized to [0.0, 1.0] based on legend length."""
+        max_idx = max(1, len(self.legend) - 1) if self.legend else 1
+        return min(1.0, max(0.0, self.score / max_idx))
+
     @classmethod
     def from_raw(
         cls,
@@ -129,10 +135,16 @@ class ScoreJudgment(BaseModel):
         level: str = "",
     ) -> ScoreJudgment:
         conf = float(confidence)
+        legend_dict = {str(k): str(v) for k, v in (legend or {}).items()}
+        resolved_level = (
+            str(level)
+            if level
+            else legend_dict.get(str(round(float(score))), "")
+        )
         return cls(
             score=float(score),
-            level=str(level),
-            legend={str(k): str(v) for k, v in (legend or {}).items()},
+            level=resolved_level,
+            legend=legend_dict,
             probabilities={str(k): float(v) for k, v in (probabilities or {}).items()},
             confidence=conf,
             confidence_tier=classify_confidence_tier(conf, floor=confidence_floor),
