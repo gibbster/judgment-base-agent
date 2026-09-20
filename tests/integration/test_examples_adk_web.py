@@ -27,8 +27,8 @@ from judgment_base_agent import (
 )
 
 
-def test_adk_agent_loader_discovers_all_four_examples() -> None:
-    """Verify `adk web examples` discovers and loads all 4 example root_agents."""
+def test_adk_agent_loader_discovers_all_five_examples() -> None:
+    """Verify `adk web examples` discovers and loads all 5 example root_agents."""
     loader = AgentLoader("examples")
     agents = loader.list_agents()
     expected = {
@@ -36,6 +36,7 @@ def test_adk_agent_loader_discovers_all_four_examples() -> None:
         "ai_action_approval_gate",
         "policy_fact_checker_loop",
         "review_triage_batch",
+        "llm_as_a_judge_rubric",
     }
     assert set(agents) == expected
     for name in expected:
@@ -169,3 +170,56 @@ def test_example_4_review_triage_batch_filter_and_rank() -> None:
     assert result["spam_blocked_ids"] == ["REV-102"]
     assert result["praise_skipped_ids"] == ["REV-104"]
     assert [b["id"] for b in result["prioritized_bugs"]] == ["REV-101", "REV-105", "REV-103"]
+
+
+@pytest.mark.asyncio
+async def test_example_5_llm_as_a_judge_rubric_evalset() -> None:
+    """Verify `SUPPORT_QUALITY_RUBRIC` and `support_rubric.evalset.json` pass compliant turns and veto-fail unsafe turns."""
+    import json
+    from pathlib import Path
+    from google.adk.evaluation.eval_metrics import EvalStatus
+    from google.adk.evaluation.eval_set import EvalSet
+    from examples.llm_as_a_judge_rubric.agent import SUPPORT_QUALITY_RUBRIC
+    from judgment_base_agent.evals import CLARITY_KEY, JudgmentRubricEvaluator
+
+    eval_set = EvalSet.model_validate(
+        json.loads(
+            Path("examples/llm_as_a_judge_rubric/support_rubric.evalset.json").read_text()
+        )
+    )
+    assert len(eval_set.eval_cases) == 2
+
+    pass_backend = MockJudgmentBackend(
+        {
+            "empathy_and_clarity": 0.85,
+            "actionable_next_steps": 0.94,
+            "policy_accuracy": 0.88,
+            "no_credential_solicitation": 0.99,
+            CLARITY_KEY: 0.95,
+        }
+    )
+    evaluator_pass = JudgmentRubricEvaluator(
+        rubric=SUPPORT_QUALITY_RUBRIC, backend=pass_backend
+    )
+    res_pass = await evaluator_pass.evaluate_invocations(
+        eval_set.eval_cases[0].conversation or []
+    )
+    assert res_pass.overall_eval_status == EvalStatus.PASSED
+
+    veto_backend = MockJudgmentBackend(
+        {
+            "empathy_and_clarity": 0.88,
+            "actionable_next_steps": 0.70,
+            "policy_accuracy": 0.80,
+            "no_credential_solicitation": 0.01,
+            CLARITY_KEY: 0.95,
+        }
+    )
+    evaluator_veto = JudgmentRubricEvaluator(
+        rubric=SUPPORT_QUALITY_RUBRIC, backend=veto_backend
+    )
+    res_veto = await evaluator_veto.evaluate_invocations(
+        eval_set.eval_cases[1].conversation or []
+    )
+    assert res_veto.overall_eval_status == EvalStatus.FAILED
+

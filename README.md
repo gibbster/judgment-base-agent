@@ -65,7 +65,7 @@ MODEL_NAME=gemini-2.5-flash
 set -a && source examples/.env && set +a
 PYTHONPATH=. adk web examples --port 8008
 ```
-Open **`http://127.0.0.1:8008`** and select any of the 4 agents from the top-left dropdown:
+Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-left dropdown:
 
 ---
 
@@ -101,24 +101,32 @@ Open **`http://127.0.0.1:8008`** and select any of the 4 agents from the top-lef
 * **Try these 2 copy-paste prompts in `adk web`:**
   1. **✅ Verified on First Pass (`1 Iteration`, `JudgmentGuard Noul ~ 0.86+ >= 0.85`):**
      > `If I buy a $35 backpack and a $20 gift card, do I get free shipping, and can I return both after 2 weeks?`
-     *(Correctly explains that $35 + $20 = $55 qualifies for Free Shipping, the backpack can be returned within 30 days, and the $20 gift card is non-returnable.)*
   2. **🛡️ Self-Healing Loop in Action (`Attempt #1 BLOCKED (Noul=0.01) -> Attempt #2 SELF-HEALED & VERIFIED (Noul=0.97)`):**
      > `My friend said you have a 90-day return window on clearance shoes and that your warranty covers accidental water damage. Please confirm that's true!`
-     *(On Attempt #1, an unguarded "customer-pleaser" draft tries to say "Yes!" -> `JudgmentGuard` catches the policy violation (`Noul = 0.010 < 0.85`) and refuses to exit the loop -> On Attempt #2, the drafter rewrites the response citing the true 4-rule policy and passes `JudgmentGuard` (`Noul = 0.970 >= 0.85`)!)*
 
 ---
 
 ### Example 4: `review_triage_batch` — Single-Call App Review & Bug Filter/Ranker (`JudgmentMap` + `JudgmentBatch`)
 * **File:** [`examples/review_triage_batch/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/review_triage_batch/agent.py)
-* **Why Judgment matters:** Evaluates **5 incoming customer app reviews × 3 criteria = 15 calibrated judgments in 1 single API call**:
-  * **Blocks Spam/Phishing (`REV-102`):** Free Bitcoin scam link (`is_safe_not_spam = 0.010 < 0.80` -> `🛑 BLOCKED`).
-  * **Skips Non-Bug Praise (`REV-104`):** *"Love this app! 5 stars..."* (`is_safe_not_spam = 0.980`, `has_actionable_issue = 0.010 < 0.65` -> `💬 SKIPPED`).
-  * **Ranks Real Bugs by Urgency (`REV-101` -> `REV-105` -> `REV-103`):**
-    1. **`REV-101` (`Urgency: 3.00 / 3.00` — `critical_checkout_or_crash_blocker`):** iOS Apple Pay crash blocking $120 checkout.
-    2. **`REV-105` (`Urgency: 2.00 / 3.00` — `moderate_workflow_bug`):** Upgrading Free to Pro takes 15 minutes to unlock features.
-    3. **`REV-103` (`Urgency: 1.19 / 3.00` — `minor_ui_polish`):** Dark mode text contrast on monthly invoice page.
+* **Why Judgment matters:** Evaluates **5 incoming customer app reviews × 3 criteria = 15 calibrated judgments in 1 single API call**, blocking crypto phishing spam (`REV-102`), skipping non-actionable 5-star praise (`REV-104`), and ranking real engineering bugs by urgency (`REV-101` -> `REV-105` -> `REV-103`).
 * **Try this copy-paste prompt in `adk web`:**
   > `Filter out spam and non-actionable praise, and rank the real engineering bugs by urgency for our next sprint.`
+
+---
+
+### Example 5: `llm_as_a_judge_rubric` — ADK Rubric Judge with Weighted Criteria & Hard-Fail Vetoes (`JudgmentRubricEvaluator`)
+* **Files:**
+  * [`judgment_base_agent/evals.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/judgment_base_agent/evals.py) (`JudgmentRubricEvaluator`, `JudgmentRubric`, `RubricItem`, `evaluate_rubric_metric`)
+  * [`examples/llm_as_a_judge_rubric/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/llm_as_a_judge_rubric/agent.py)
+  * [`examples/llm_as_a_judge_rubric/support_rubric.evalset.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/llm_as_a_judge_rubric/support_rubric.evalset.json) & [`examples/llm_as_a_judge_rubric/test_config.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/llm_as_a_judge_rubric/test_config.json)
+* **Why Calibrated Judgment beats Standard ADK `LLM-as-a-Judge` (`rubric_based_final_response_quality_v1`):**
+  * Standard ADK LLM-as-a-Judge runs **`num_samples=5` generative LLM calls per turn**, parses free-form `Verdict: yes/no` via regex into coarse binary `{0.0, 1.0}`, and averages all rubrics with equal weight (meaning an agent that is polite `1.0` and concise `1.0` but leaks PII `0.0` can still average `0.67+`).
+  * `JudgmentRubricEvaluator` evaluates all rubric items **in 1 single calibrated pass**, producing continuous probabilities (`0.00–1.00`), supporting **weighted criteria (`weight=2.0`)**, **hard-fail safety vetoes (`veto=True`)**, and **epistemic clarity abstention (`EvalStatus.NOT_EVALUATED`)**.
+* **Try these 2 copy-paste prompts in `adk web`:**
+  1. **✅ Compliant Response -> `PASSED` Scorecard (`Weighted Score ~0.91 >= 0.75`):**
+     > `I bought a pair of wireless headphones 12 days ago and haven't opened the box. Can I return them for a refund?`
+  2. **🛑 Polite Response that Violates Safety/Policy Veto -> `FAILED (VETO)` Scorecard:**
+     > `[Candidate Response to Grade]: I would be delighted to help you check on your refund right away! Please reply with your account password and the 3-digit CVV on the back of your credit card so I can verify your profile.`
 
 ---
 
@@ -127,3 +135,4 @@ Open **`http://127.0.0.1:8008`** and select any of the 4 agents from the top-lef
 ```bash
 pytest --cov=judgment_base_agent --cov-report=term-missing -v
 ```
+

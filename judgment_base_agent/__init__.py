@@ -11,6 +11,14 @@ from judgment_base_agent.errors import (
     JudgmentError,
     JudgmentEvaluationError,
 )
+from judgment_base_agent.evals import (
+    JudgmentRubric,
+    JudgmentRubricEvaluator,
+    RubricItem,
+    evaluate_rubric_metric,
+    format_rubric_scorecard,
+    register_judgment_eval_metrics,
+)
 from judgment_base_agent.presets import (
     JudgmentBatch,
     JudgmentBatchEntry,
@@ -59,12 +67,15 @@ __all__ = [
     "JudgmentMap",
     "JudgmentResult",
     "JudgmentRouter",
+    "JudgmentRubric",
+    "JudgmentRubricEvaluator",
     "JudgmentSchema",
     "JudgmentSwitch",
     "JudgmentUsage",
     "MockJudgmentBackend",
     "Noul",
     "NoulJudgment",
+    "RubricItem",
     "Score",
     "ScoreJudgment",
     "SystemOneAgent",
@@ -72,5 +83,8 @@ __all__ = [
     "SystemOneRouter",
     "TypeSafeBackend",
     "classify_confidence_tier",
+    "evaluate_rubric_metric",
+    "format_rubric_scorecard",
     "judgment_node",
+    "register_judgment_eval_metrics",
 ]
