@@ -38,3 +38,6 @@ packages = ["judgment_base_agent"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "heavy: needs torch/transformers and downloads a model from Hugging Face; run with `pytest -m heavy`",
+]
