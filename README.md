@@ -59,7 +59,10 @@ pip install -e .
 
 ## Running the 5 Interactive Examples in `adk web`
 
-The [`examples/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples) directory contains **5 intuitive, relatable ADK applications** that you can test side-by-side in the ADK Web UI (`http://127.0.0.1:8008`). Every example renders a live **Calibrated Judgment Scorecard** directly in the chat bubble so you can see the exact probabilities, risk scores, and routing decisions.
+The [`examples/`](./examples) directory contains **5 intuitive, relatable ADK applications** that you can test side-by-side in the ADK Web UI (`http://127.0.0.1:8008`). Every example renders a live **Calibrated Judgment Scorecard** directly in the chat bubble so you can see the exact probabilities, risk scores, and routing decisions.
+
+> [!TIP]
+> **[TESTING.md](./TESTING.md) is the full runbook** — step-by-step setup for both the managed TypeSafe API and the self-hosted DiffusionGemma GPU, including the IAM you need, how to prove a call actually hit the GPU, troubleshooting, and known limitations. Start there if someone handed you this repo.
 
 ### 1. Configure `examples/.env`
 
@@ -89,7 +92,7 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 ---
 
 ### Example 1: `smart_support_router` — Smart Support & Refund Router (`JudgmentSwitch`)
-* **File:** [`examples/smart_support_router/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/smart_support_router/agent.py)
+* **File:** [`examples/smart_support_router/agent.py`](./examples/smart_support_router/agent.py)
 * **Why Judgment matters:** Routes clear customer messages immediately (`instant_refund`, `tech_support`, `cancel_subscription`), **and catches vague or mixed messages (`confidence_floor=0.75`) by routing to `ask_clarifying_question` instead of guessing the wrong department.**
 * **Try these 3 copy-paste prompts in `adk web`:**
   1. **💸 Instant Auto-Refund (`route="instant_refund"`, effective confidence `~0.97 >= 0.75`):**
@@ -102,7 +105,7 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 ---
 
 ### Example 2: `ai_action_approval_gate` — AI Action & Refund Safety Gate (`JudgmentAgent` + `JudgmentSchema`)
-* **File:** [`examples/ai_action_approval_gate/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/ai_action_approval_gate/agent.py)
+* **File:** [`examples/ai_action_approval_gate/agent.py`](./examples/ai_action_approval_gate/agent.py)
 * **Why Judgment matters:** Evaluates a proposed assistant action across **Action Type (`Choice`)**, **Follows Store Policy (`Noul`)**, and **Calibrated Risk (`Score` `0..3` / normalized `0..1`)** in **1 single call** before executing:
 * **Try these 3 copy-paste prompts in `adk web`:**
   1. **✅ `AUTO_APPROVED` (`small_order_refund`, Policy `Noul ~ 0.97`, Normalized Risk `~0.13 < 0.25`):**
@@ -115,7 +118,7 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 ---
 
 ### Example 3: `policy_fact_checker_loop` — Zero-Hallucination Store Policy Assistant (`JudgmentGuard` + `LoopAgent`)
-* **File:** [`examples/policy_fact_checker_loop/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/policy_fact_checker_loop/agent.py)
+* **File:** [`examples/policy_fact_checker_loop/agent.py`](./examples/policy_fact_checker_loop/agent.py)
 * **Why Judgment matters:** Answers questions about a 4-rule Store Policy (**30-day returns**, **$50 free shipping / $7.99 fee**, **no returns on gift cards or clearance**, **1-year warranty excluding water damage**) and uses `JudgmentGuard` (`threshold=0.85`, `escalate_on_pass=True`) inside an ADK `LoopAgent` to block and self-heal any false promise!
 * **Try these 2 copy-paste prompts in `adk web`:**
   1. **✅ Verified on First Pass (`1 Iteration`, `JudgmentGuard Noul ~ 0.86+ >= 0.85`):**
@@ -126,7 +129,7 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 ---
 
 ### Example 4: `review_triage_batch` — Single-Call App Review & Bug Filter/Ranker (`JudgmentMap` + `JudgmentBatch`)
-* **File:** [`examples/review_triage_batch/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/review_triage_batch/agent.py)
+* **File:** [`examples/review_triage_batch/agent.py`](./examples/review_triage_batch/agent.py)
 * **Why Judgment matters:** Evaluates **5 incoming customer app reviews × 3 criteria = 15 calibrated judgments in 1 single API call**, blocking crypto phishing spam (`REV-102`), skipping non-actionable 5-star praise (`REV-104`), and ranking real engineering bugs by urgency (`REV-101` -> `REV-105` -> `REV-103`).
 * **Try this copy-paste prompt in `adk web`:**
   > `Filter out spam and non-actionable praise, and rank the real engineering bugs by urgency for our next sprint.`
@@ -135,9 +138,9 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 
 ### Example 5: `llm_as_a_judge_rubric` — ADK Rubric Judge with Weighted Criteria & Hard-Fail Vetoes (`JudgmentRubricEvaluator`)
 * **Files:**
-  * [`judgment_base_agent/evals.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/judgment_base_agent/evals.py) (`JudgmentRubricEvaluator`, `JudgmentRubric`, `RubricItem`, `evaluate_rubric_metric`)
-  * [`examples/llm_as_a_judge_rubric/agent.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/llm_as_a_judge_rubric/agent.py)
-  * [`examples/llm_as_a_judge_rubric/support_rubric.evalset.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/llm_as_a_judge_rubric/support_rubric.evalset.json) & [`examples/llm_as_a_judge_rubric/test_config.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples/llm_as_a_judge_rubric/test_config.json)
+  * [`judgment_base_agent/evals.py`](./judgment_base_agent/evals.py) (`JudgmentRubricEvaluator`, `JudgmentRubric`, `RubricItem`, `evaluate_rubric_metric`)
+  * [`examples/llm_as_a_judge_rubric/agent.py`](./examples/llm_as_a_judge_rubric/agent.py)
+  * [`examples/llm_as_a_judge_rubric/support_rubric.evalset.json`](./examples/llm_as_a_judge_rubric/support_rubric.evalset.json) & [`examples/llm_as_a_judge_rubric/test_config.json`](./examples/llm_as_a_judge_rubric/test_config.json)
 * **Why Calibrated Judgment beats Standard ADK `LLM-as-a-Judge` (`rubric_based_final_response_quality_v1`):**
   * Standard ADK LLM-as-a-Judge runs **`num_samples=5` generative LLM calls per turn**, parses free-form `Verdict: yes/no` via regex into coarse binary `{0.0, 1.0}`, and averages all rubrics with equal weight (meaning an agent that is polite `1.0` and concise `1.0` but leaks PII `0.0` can still average `0.67+`).
   * `JudgmentRubricEvaluator` evaluates all rubric items **in 1 single calibrated pass**, producing continuous probabilities (`0.00–1.00`), supporting **weighted criteria (`weight=2.0`)**, **hard-fail safety vetoes (`veto=True`)**, and **epistemic clarity abstention (`EvalStatus.NOT_EVALUATED`)**.
@@ -152,8 +155,8 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 ## Latency, Token & Cost Value Comparison
 
 All benchmarks below were executed live against **`TypeSafeBackend` (`judgment-latest`)**, **`gemini-3.5-flash-lite`**, and **`gemini-3.7-flash`**.
-- **Benchmark Suite:** [`benchmarks/examples_latency_cost_benchmark.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/benchmarks/examples_latency_cost_benchmark.py) & [`benchmarks/latency_benchmark.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/benchmarks/latency_benchmark.py)
-- **Raw Empirical Reports:** [`benchmarks/examples_latency_cost_report.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/benchmarks/examples_latency_cost_report.json) & [`benchmarks/latest_latency_report.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/benchmarks/latest_latency_report.json)
+- **Benchmark Suite:** [`benchmarks/examples_latency_cost_benchmark.py`](./benchmarks/examples_latency_cost_benchmark.py) & [`benchmarks/latency_benchmark.py`](./benchmarks/latency_benchmark.py)
+- **Raw Empirical Reports:** [`benchmarks/examples_latency_cost_report.json`](./benchmarks/examples_latency_cost_report.json) & [`benchmarks/latest_latency_report.json`](./benchmarks/latest_latency_report.json)
 
 ---
 
@@ -216,12 +219,12 @@ The container ships **two engines**:
 | Engine | `DIFFUSIONGEMMA_ENGINE` | Notes |
 | :-- | :-- | :-- |
 | **`transformers`** (default) | `transformers` | Native single-step `DiffusionGemmaForBlockDiffusion` encoder-prefill + bidirectional-decoder canvas pass. Requires `transformers >= 5.8.0`. Runs on CPU or GPU. |
-| **vLLM** (opt-in, GPU-only) | `vllm` | Runs `vllm serve` plus the PR's own `structured_server.py`, which does the single-canvas read correctly and serves `POST /v1/systemone`. Needs [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250), which is **open, conflicted, and unreviewed** — so vLLM is **not installed unless you build with `--build-arg INSTALL_VLLM=true`**. See [the deploy README](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/README.md). |
+| **vLLM** (opt-in, GPU-only) | `vllm` | Runs `vllm serve` plus the PR's own `structured_server.py`, which does the single-canvas read correctly and serves `POST /v1/systemone`. Needs [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250), which is **open, conflicted, and unreviewed** — so vLLM is **not installed unless you build with `--build-arg INSTALL_VLLM=true`**. See [the deploy README](./deploy/diffusiongemma_jev/README.md). |
 
-All deployment artifacts live in [`deploy/diffusiongemma_jev/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/):
-* [`Dockerfile`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/Dockerfile) & [`entrypoint.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/entrypoint.sh) — `python:3.11-slim` + torch (cu124) + `transformers` + FastAPI. vLLM is an opt-in build arg pinned to an exact PR commit; `entrypoint.sh` fails fast with an actionable message if `DIFFUSIONGEMMA_ENGINE=vllm` is set on an image built without it. In `vllm` mode the entrypoint execs the PR's `structured_server.py` instead of `server.py`.
-* [`server.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/server.py) — The `transformers` engine. Exposes `GET /health` plus `POST /v1/system_one` and its `POST /v1/judgment` alias, returning calibrated `choices`, `scores`, `nouls`, and Shannon-entropy `confidence`.
-* [`deploy_cloud_run.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/deploy_cloud_run.sh) — 1-command deploy. Auto-creates the Artifact Registry repo, attempts `1x nvidia-l4`, and **falls back to 4 vCPU / 16 GiB CPU if L4 quota is unavailable**.
+All deployment artifacts live in [`deploy/diffusiongemma_jev/`](./deploy/diffusiongemma_jev/):
+* [`Dockerfile`](./deploy/diffusiongemma_jev/Dockerfile) & [`entrypoint.sh`](./deploy/diffusiongemma_jev/entrypoint.sh) — `python:3.11-slim` + torch (cu124) + `transformers` + FastAPI. vLLM is an opt-in build arg pinned to an exact PR commit; `entrypoint.sh` fails fast with an actionable message if `DIFFUSIONGEMMA_ENGINE=vllm` is set on an image built without it. In `vllm` mode the entrypoint execs the PR's `structured_server.py` instead of `server.py`.
+* [`server.py`](./deploy/diffusiongemma_jev/server.py) — The `transformers` engine. Exposes `GET /health` plus `POST /v1/system_one` and its `POST /v1/judgment` alias, returning calibrated `choices`, `scores`, `nouls`, and Shannon-entropy `confidence`.
+* [`deploy_cloud_run.sh`](./deploy/diffusiongemma_jev/deploy_cloud_run.sh) — 1-command deploy. Auto-creates the Artifact Registry repo, attempts `1x nvidia-l4`, and **falls back to 4 vCPU / 16 GiB CPU if L4 quota is unavailable**.
 
 ### 1. Deploy in 1 Command
 
@@ -253,7 +256,7 @@ export DIFFUSIONGEMMA_API_KEY="$(gcloud auth print-identity-token \
   --audiences="$DIFFUSIONGEMMA_JEV_URL" --include-email)"
 ```
 
-Or instantiate [`DiffusionGemmaBackend`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/judgment_base_agent/backends/diffusiongemma.py) explicitly (`mode="system_one"` for the container, `mode="vllm"` for raw vLLM `/v1/completions`):
+Or instantiate [`DiffusionGemmaBackend`](./judgment_base_agent/backends/diffusiongemma.py) explicitly (`mode="system_one"` for the container, `mode="vllm"` for raw vLLM `/v1/completions`):
 
 ```python
 from judgment_base_agent import DiffusionGemmaBackend, JudgmentSwitch
