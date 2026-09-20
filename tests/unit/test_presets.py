@@ -10,6 +10,7 @@ from judgment_base_agent import (
     JudgmentBatch,
     JudgmentConfigError,
     JudgmentField,
+    JudgmentGate,
     JudgmentGuard,
     JudgmentMap,
     JudgmentRouter,
@@ -29,12 +30,19 @@ from judgment_base_agent import (
 def test_aliases_are_identical() -> None:
     import judgment_base_agent
 
-    assert SystemOneAgent is SystemOneAgent
+    assert SystemOneAgent is JudgmentAgent
     assert JudgmentRouter is JudgmentSwitch
     assert SystemOneRouter is JudgmentSwitch
+    assert JudgmentGate is JudgmentGuard
     assert SystemOneGate is JudgmentGuard
-    assert judgment_base_agent.JudgmentAgent is judgment_base_agent.JudgmentAgent
-    assert judgment_base_agent.__all__ == judgment_base_agent.__all__
+
+    # The aliases must resolve as module attributes too, not only through the
+    # `from judgment_base_agent import ...` block above.
+    assert judgment_base_agent.SystemOneAgent is judgment_base_agent.JudgmentAgent
+
+    # Guard against __all__ going stale: every exported name must exist.
+    unresolved = [name for name in judgment_base_agent.__all__ if not hasattr(judgment_base_agent, name)]
+    assert unresolved == []
 
 
 def test_presets_validation_errors() -> None:
