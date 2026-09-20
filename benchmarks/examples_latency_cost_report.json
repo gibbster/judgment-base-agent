@@ -1,0 +1,235 @@
+{
+  "timestamp_utc": "2026-09-20T01:28:50Z",
+  "examples": [
+    {
+      "example_id": "1. customer_support_triage",
+      "preset": "JudgmentSwitch",
+      "task": "3-way intent routing + epistemic clarity abstention check (2 judgments)",
+      "typesafe_judgment": {
+        "model": "judgment-latest",
+        "min_ms": 131.7,
+        "p50_ms": 143.7,
+        "mean_ms": 163.1,
+        "max_ms": 213.9,
+        "api_calls": 1,
+        "input_tokens": 434,
+        "output_tokens": 66,
+        "cost_per_1k_usd": 0.1047
+      },
+      "gemini_3_5_flash_lite": {
+        "model": "gemini-3.5-flash-lite",
+        "min_ms": 428.9,
+        "p50_ms": 677.8,
+        "mean_ms": 623.8,
+        "max_ms": 764.8,
+        "api_calls": 1,
+        "input_tokens": 146,
+        "output_tokens": 38,
+        "thought_tokens": 0,
+        "cost_per_1k_usd": 0.0298
+      },
+      "gemini_3_7_flash": {
+        "model": "gemini-3.7-flash",
+        "min_ms": 2744.3,
+        "p50_ms": 2763.3,
+        "mean_ms": 2849.4,
+        "max_ms": 3040.4,
+        "api_calls": 1,
+        "input_tokens": 146,
+        "output_tokens": 326,
+        "thought_tokens": 288,
+        "cost_per_1k_usd": 0.8588
+      },
+      "speedup_vs_lite_x": 4.7,
+      "speedup_vs_flash_x": 19.2
+    },
+    {
+      "example_id": "2. ai_action_approval_gate",
+      "preset": "JudgmentGuard (Pre-Gate)",
+      "task": "3-rule DevOps/privilege/secret safety gate before execution (4 judgments)",
+      "typesafe_judgment": {
+        "model": "judgment-latest",
+        "min_ms": 169.7,
+        "p50_ms": 204.4,
+        "mean_ms": 227.7,
+        "max_ms": 309.0,
+        "api_calls": 1,
+        "input_tokens": 409,
+        "output_tokens": 41,
+        "cost_per_1k_usd": 0.0859
+      },
+      "gemini_3_5_flash_lite": {
+        "model": "gemini-3.5-flash-lite",
+        "min_ms": 783.1,
+        "p50_ms": 894.0,
+        "mean_ms": 860.1,
+        "max_ms": 903.0,
+        "api_calls": 1,
+        "input_tokens": 125,
+        "output_tokens": 147,
+        "thought_tokens": 0,
+        "cost_per_1k_usd": 0.0713
+      },
+      "gemini_3_7_flash": {
+        "model": "gemini-3.7-flash",
+        "min_ms": 2803.8,
+        "p50_ms": 4363.5,
+        "mean_ms": 10218.8,
+        "max_ms": 23489.2,
+        "api_calls": 1,
+        "input_tokens": 125,
+        "output_tokens": 419,
+        "thought_tokens": 265,
+        "cost_per_1k_usd": 1.085
+      },
+      "speedup_vs_lite_x": 4.4,
+      "speedup_vs_flash_x": 21.3
+    },
+    {
+      "example_id": "3. policy_fact_checker_loop",
+      "preset": "JudgmentGuard (Loop Verifier)",
+      "task": "4-rule store policy fact-check per LoopAgent iteration (5 judgments)",
+      "typesafe_judgment": {
+        "model": "judgment-latest",
+        "min_ms": 150.8,
+        "p50_ms": 198.5,
+        "mean_ms": 213.5,
+        "max_ms": 291.3,
+        "api_calls": 1,
+        "input_tokens": 628,
+        "output_tokens": 41,
+        "cost_per_1k_usd": 0.1188
+      },
+      "gemini_3_5_flash_lite": {
+        "model": "gemini-3.5-flash-lite",
+        "min_ms": 533.6,
+        "p50_ms": 569.9,
+        "mean_ms": 733.0,
+        "max_ms": 1095.5,
+        "api_calls": 1,
+        "input_tokens": 334,
+        "output_tokens": 220,
+        "thought_tokens": 0,
+        "cost_per_1k_usd": 0.1214
+      },
+      "gemini_3_7_flash": {
+        "model": "gemini-3.7-flash",
+        "min_ms": 5671.2,
+        "p50_ms": 8713.9,
+        "mean_ms": 13608.3,
+        "max_ms": 26439.8,
+        "api_calls": 1,
+        "input_tokens": 334,
+        "output_tokens": 786,
+        "thought_tokens": 570,
+        "cost_per_1k_usd": 2.0652
+      },
+      "speedup_vs_lite_x": 2.9,
+      "speedup_vs_flash_x": 43.9
+    },
+    {
+      "example_id": "4. review_triage_batch",
+      "preset": "JudgmentMap + JudgmentBatch",
+      "task": "5 customer reviews \u00d7 3 criteria (15 calibrated judgments in 1 batch call)",
+      "typesafe_judgment": {
+        "model": "judgment-latest",
+        "min_ms": 132.1,
+        "p50_ms": 278.3,
+        "mean_ms": 251.6,
+        "max_ms": 344.3,
+        "api_calls": 1,
+        "input_tokens": 1559,
+        "output_tokens": 339,
+        "cost_per_1k_usd": 0.4372
+      },
+      "gemini_3_5_flash_lite": {
+        "model": "gemini-3.5-flash-lite",
+        "min_ms": 2810.9,
+        "p50_ms": 2820.7,
+        "mean_ms": 2820.7,
+        "max_ms": 2830.4,
+        "api_calls": 5,
+        "input_tokens": 621,
+        "output_tokens": 216,
+        "cost_per_1k_usd": 0.1485
+      },
+      "gemini_3_7_flash": {
+        "model": "gemini-3.7-flash",
+        "min_ms": 18336.6,
+        "p50_ms": 18461.8,
+        "mean_ms": 18461.8,
+        "max_ms": 18587.0,
+        "api_calls": 5,
+        "input_tokens": 621,
+        "output_tokens": 2016,
+        "cost_per_1k_usd": 5.2263
+      },
+      "speedup_vs_lite_x": 10.1,
+      "speedup_vs_flash_x": 66.3
+    },
+    {
+      "example_id": "5. llm_as_a_judge_rubric",
+      "preset": "JudgmentRubricEvaluator",
+      "task": "4-criterion weighted ADK rubric + hard-fail safety vetoes (5 judgments)",
+      "typesafe_judgment": {
+        "model": "judgment-latest",
+        "min_ms": 164.7,
+        "p50_ms": 228.0,
+        "mean_ms": 243.9,
+        "max_ms": 339.1,
+        "api_calls": 1,
+        "input_tokens": 310,
+        "output_tokens": 10,
+        "cost_per_1k_usd": 0.0525
+      },
+      "gemini_3_5_flash_lite_1_sample": {
+        "model": "gemini-3.5-flash-lite (num_samples=1)",
+        "min_ms": 2927.5,
+        "p50_ms": 2927.5,
+        "mean_ms": 2927.5,
+        "max_ms": 2927.5,
+        "api_calls": 4,
+        "input_tokens": 1360,
+        "output_tokens": 720,
+        "cost_per_1k_usd": 0.424
+      },
+      "gemini_3_5_flash_lite_default_5_samples": {
+        "model": "gemini-3.5-flash-lite (num_samples=5)",
+        "min_ms": 10203.9,
+        "p50_ms": 10203.9,
+        "mean_ms": 10203.9,
+        "max_ms": 10203.9,
+        "api_calls": 20,
+        "input_tokens": 6800,
+        "output_tokens": 3600,
+        "cost_per_1k_usd": 2.12
+      },
+      "gemini_3_7_flash_1_sample": {
+        "model": "gemini-3.7-flash (num_samples=1)",
+        "min_ms": 15344.8,
+        "p50_ms": 15344.8,
+        "mean_ms": 15344.8,
+        "max_ms": 15344.8,
+        "api_calls": 4,
+        "input_tokens": 1360,
+        "output_tokens": 1040,
+        "cost_per_1k_usd": 3.008
+      },
+      "gemini_3_7_flash_default_5_samples": {
+        "model": "gemini-3.7-flash (num_samples=5)",
+        "min_ms": 68333.0,
+        "p50_ms": 68333.0,
+        "mean_ms": 68333.0,
+        "max_ms": 68333.0,
+        "api_calls": 20,
+        "input_tokens": 6800,
+        "output_tokens": 5200,
+        "cost_per_1k_usd": 15.04
+      },
+      "speedup_vs_lite_1_sample_x": 12.8,
+      "speedup_vs_lite_5_samples_x": 44.8,
+      "speedup_vs_flash_1_sample_x": 67.3,
+      "speedup_vs_flash_5_samples_x": 299.7
+    }
+  ]
+}
