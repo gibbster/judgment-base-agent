@@ -478,7 +478,7 @@ class JudgmentMap(JudgmentAgent):
         )
 
         entries: list[JudgmentBatchEntry[Any, Any]] = []
-        for idx, (item, key_map) in enumerate(zip(items, item_q_keys)):
+        for idx, (item, key_map) in enumerate(zip(items, item_q_keys, strict=True)):
             sub_choices = {
                 fk: combined_result.choices[nk]
                 for fk, nk in key_map.items()
