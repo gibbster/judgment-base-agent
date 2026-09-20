@@ -130,9 +130,38 @@ Open **`http://127.0.0.1:8008`** and select any of the 5 agents from the top-lef
 
 ---
 
-## Running Tests
+## Latency Evaluation & Benchmarks
+
+Reproducible benchmark script: [`benchmarks/latency_benchmark.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/benchmarks/latency_benchmark.py) (raw report: [`benchmarks/latest_latency_report.json`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/benchmarks/latest_latency_report.json)).
+
+### 1. ADK Rubric Judge Latency: `JudgmentRubricEvaluator` vs. Standard ADK `RubricBasedFinalResponseQualityV1Evaluator`
+Evaluated on a 4-criterion customer support rubric (`empathy_and_clarity`, `actionable_next_steps`, `policy_accuracy`, `no_credential_solicitation`):
+
+| Evaluator | Model / Backend | API Calls / Turn | p50 Latency | Mean Latency | Min / Max | Speedup vs. ADK Default |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **`JudgmentRubricEvaluator`** *(4 criteria + clarity guard)* | **`TypeSafeBackend` (`judgment-latest`)** | **`1` (batched)** | **`166.4 ms`** | **`170.7 ms`** | `157.1 ms` / `188.5 ms` | **`224.4× faster`** |
+| Standard ADK `RubricBasedFinalResponseQualityV1` (`num_samples=1`) | `gemini-2.5-flash` | `4` | `6,835.7 ms` (`6.84 s`) | `6,835.7 ms` | `5,855.3 ms` / `7,816.1 ms` | `5.5× faster` *(41.1× slower than Judgment)* |
+| Standard ADK `RubricBasedFinalResponseQualityV1` (**default `num_samples=5`**) | `gemini-2.5-flash` | `20` | `37,333.3 ms` (`37.33 s`) | `37,333.3 ms` | `37,333.3 ms` | `1.0×` (baseline) |
+
+### 2. Batch-Size Scaling in `TypeSafeBackend` (1 to 8 `Noul` Criteria in a Single Call)
+Because `TypeSafeBackend` evaluates all batched questions in parallel over the shared state representation without autoregressive token generation, scaling from **1 to 8 criteria** in a single call exhibits near-$O(1)$ constant wall-clock latency (~170–195 ms total):
+
+| Batched `Noul` Criteria per Call | API Calls | p50 Latency | Mean Latency | Min / Max | Effective Latency per Criterion |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| **1 criterion** | `1` | `195.1 ms` | `173.2 ms` | `127.6 ms` / `196.9 ms` | `195.1 ms / criterion` |
+| **2 criteria** | `1` | `167.2 ms` | `181.7 ms` | `162.4 ms` / `215.6 ms` | `83.6 ms / criterion` |
+| **4 criteria** | `1` | `224.9 ms` | `195.7 ms` | `133.5 ms` / `228.6 ms` | `56.2 ms / criterion` |
+| **8 criteria** | `1` | **`154.5 ms`** | **`171.9 ms`** | `150.5 ms` / `210.6 ms` | **`19.3 ms / criterion`** |
+
+---
+
+## Running Tests & Benchmarks
 
 ```bash
+# Run full unit + integration test suite
 pytest --cov=judgment_base_agent --cov-report=term-missing -v
+
+# Run live latency benchmark
+set -a && source examples/.env && set +a && PYTHONPATH=. python benchmarks/latency_benchmark.py
 ```
 

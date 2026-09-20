@@ -98,6 +98,24 @@ class TypeSafeBackend:
         self.default_model = default_model
         self.confidence_floor = confidence_floor
         self.client = client
+        self._shared_client: Any | None = None
+
+    async def aclose(self) -> None:
+        """Close the cached AsyncTypeSafeClient if one was created."""
+        if self._shared_client is not None:
+            close_fn = getattr(self._shared_client, "close", None) or getattr(
+                self._shared_client, "__aexit__", None
+            )
+            if close_fn is not None:
+                try:
+                    await close_fn()
+                except TypeError:
+                    await self._shared_client.__aexit__(None, None, None)
+            self._shared_client = None
+
+    async def close(self) -> None:
+        """Alias for aclose()."""
+        await self.aclose()
 
     async def evaluate(
         self,
@@ -136,14 +154,16 @@ class TypeSafeBackend:
                     if target_model in ("judgment-latest", "system-one")
                     else target_model
                 )
-                async with typesafe_sdk.AsyncTypeSafeClient(
-                    api_key=resolved_key
-                ) as live_client:
-                    response = await live_client.system_one(
-                        state=state,
-                        questions=sdk_questions,
-                        model=sdk_model,
+                if self._shared_client is None:
+                    client_instance = typesafe_sdk.AsyncTypeSafeClient(
+                        api_key=resolved_key
                     )
+                    self._shared_client = await client_instance.__aenter__()
+                response = await self._shared_client.system_one(
+                    state=state,
+                    questions=sdk_questions,
+                    model=sdk_model,
+                )
         except JudgmentConfigError:
             raise
         except Exception as exc:

@@ -1,0 +1,117 @@
+{
+  "timestamp_utc": "2026-09-20T00:42:56Z",
+  "batch_scaling": [
+    {
+      "name": "TypeSafeBackend Batched (1 Noul criteria in 1 call)",
+      "runs": 3,
+      "api_calls_per_eval": 1,
+      "min_ms": 127.6,
+      "p50_ms": 195.1,
+      "mean_ms": 173.2,
+      "p95_ms": 196.9,
+      "max_ms": 196.9,
+      "raw_ms": [
+        195.1,
+        196.9,
+        127.6
+      ],
+      "criteria_count": 1,
+      "ms_per_criterion": 195.1
+    },
+    {
+      "name": "TypeSafeBackend Batched (2 Noul criteria in 1 call)",
+      "runs": 3,
+      "api_calls_per_eval": 1,
+      "min_ms": 162.4,
+      "p50_ms": 167.2,
+      "mean_ms": 181.7,
+      "p95_ms": 215.6,
+      "max_ms": 215.6,
+      "raw_ms": [
+        162.4,
+        215.6,
+        167.2
+      ],
+      "criteria_count": 2,
+      "ms_per_criterion": 83.6
+    },
+    {
+      "name": "TypeSafeBackend Batched (4 Noul criteria in 1 call)",
+      "runs": 3,
+      "api_calls_per_eval": 1,
+      "min_ms": 133.5,
+      "p50_ms": 224.9,
+      "mean_ms": 195.7,
+      "p95_ms": 228.6,
+      "max_ms": 228.6,
+      "raw_ms": [
+        133.5,
+        224.9,
+        228.6
+      ],
+      "criteria_count": 4,
+      "ms_per_criterion": 56.2
+    },
+    {
+      "name": "TypeSafeBackend Batched (8 Noul criteria in 1 call)",
+      "runs": 3,
+      "api_calls_per_eval": 1,
+      "min_ms": 150.5,
+      "p50_ms": 154.5,
+      "mean_ms": 171.9,
+      "p95_ms": 210.6,
+      "max_ms": 210.6,
+      "raw_ms": [
+        154.5,
+        210.6,
+        150.5
+      ],
+      "criteria_count": 8,
+      "ms_per_criterion": 19.3
+    }
+  ],
+  "evaluator_comparison": [
+    {
+      "name": "JudgmentRubricEvaluator (4 criteria + clarity guard, 1 batched call)",
+      "runs": 3,
+      "api_calls_per_eval": 1,
+      "min_ms": 157.1,
+      "p50_ms": 166.4,
+      "mean_ms": 170.7,
+      "p95_ms": 188.5,
+      "max_ms": 188.5,
+      "raw_ms": [
+        188.5,
+        157.1,
+        166.4
+      ]
+    },
+    {
+      "name": "ADK RubricBasedFinalResponseQualityV1 (gemini-2.5-flash, num_samples=1 -> 4 LLM calls)",
+      "runs": 2,
+      "api_calls_per_eval": 4,
+      "min_ms": 5855.3,
+      "p50_ms": 6835.7,
+      "mean_ms": 6835.7,
+      "p95_ms": 7816.1,
+      "max_ms": 7816.1,
+      "raw_ms": [
+        7816.1,
+        5855.3
+      ]
+    },
+    {
+      "name": "ADK RubricBasedFinalResponseQualityV1 (gemini-2.5-flash, default num_samples=5 -> 20 LLM calls)",
+      "runs": 1,
+      "api_calls_per_eval": 20,
+      "min_ms": 37333.3,
+      "p50_ms": 37333.3,
+      "mean_ms": 37333.3,
+      "p95_ms": 37333.3,
+      "max_ms": 37333.3,
+      "raw_ms": [
+        37333.3
+      ]
+    }
+  ]
+}
