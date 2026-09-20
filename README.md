@@ -27,20 +27,39 @@ flowchart LR
 
 ---
 
-## The 4 Core Building Blocks
+## Quick Install (`pip install`)
 
-| ADK Agent Class | Programming Equivalent | What It Does |
-| :--- | :--- | :--- |
-| **`JudgmentSwitch`** | `switch` / `match` | **Smart Router with Confidence Fallback:** Evaluates target route (`Choice`) and request clarity (`Noul`) in 1 call. If confidence `< confidence_floor` (e.g. `0.75`), automatically routes to `uncertain_route` (e.g. `ask_clarifying_question`) instead of guessing. |
-| **`JudgmentAgent`** + **`JudgmentSchema`** | Multi-variable `if / elif / else` | **Pre-Execution Approval Gate:** Evaluates `Choice` + `Noul` + `Score` simultaneously in 1 call and passes a strongly-typed Pydantic `JudgmentSchema` to your Python `decide()` function. |
-| **`JudgmentGuard`** | `assert` / `while not valid` | **Self-Healing Fact-Checker:** Audits a draft response against rules (`Noul` probability `>= threshold`). Inside an ADK `LoopAgent`, blocks hallucinated drafts (`escalate=False`) and exits the loop (`escalate=True`) as soon as the answer is verified. |
-| **`JudgmentMap`** + **`JudgmentBatch`** | `.map().filter().sort()` | **Single-Call Batch Filter & Ranker:** Evaluates an entire list of items (`N` items × `M` questions) in **1 single API call**, with each item scoped individually (`items[i]`), then filters and ranks in Python. |
+Install directly into any Python 3.11+ / Google ADK environment:
+
+```bash
+pip install git+https://github.com/mbonnardot/judgment-base-agent.git
+```
+
+Or clone to run the **5 interactive `adk web` examples** and **live latency benchmarks** locally:
+
+```bash
+git clone https://github.com/mbonnardot/judgment-base-agent.git
+cd judgment-base-agent
+pip install -e .
+```
 
 ---
 
-## Running the 4 Interactive Examples in `adk web`
+## The 5 Core Building Blocks
 
-The [`examples/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples) directory contains **4 intuitive, relatable ADK applications** that you can test side-by-side in the ADK Web UI (`http://127.0.0.1:8008`). Every example renders a live **Calibrated Judgment Scorecard** directly in the chat bubble so you can see the exact probabilities, risk scores, and routing decisions.
+| ADK Class / Evaluator | Programming Equivalent | What It Does |
+| :--- | :--- | :--- |
+| **`JudgmentSwitch`** | `switch` / `match` | **Smart Router with Confidence Fallback:** Evaluates target route (`Choice`) and request clarity (`Noul`) in 1 call (`~144 ms`). If confidence `< confidence_floor` (e.g. `0.75`), automatically routes to `uncertain_route` (e.g. `ask_clarifying_question`) instead of guessing. |
+| **`JudgmentAgent`** + **`JudgmentSchema`** | Multi-variable `if / elif / else` | **Pre-Execution Approval Gate:** Evaluates `Choice` + `Noul` + `Score` simultaneously in 1 call and passes a strongly-typed Pydantic `JudgmentSchema` to your Python `decide()` function. |
+| **`JudgmentGuard`** | `assert` / `while not valid` | **Self-Healing Fact-Checker:** Audits a draft response against rules (`Noul` probability `>= threshold`, `~198 ms`). Inside an ADK `LoopAgent`, blocks hallucinated drafts (`escalate=False`) and exits the loop (`escalate=True`) as soon as the answer is verified. |
+| **`JudgmentMap`** + **`JudgmentBatch`** | `.map().filter().sort()` | **Single-Call Batch Filter & Ranker:** Evaluates an entire list of items (`N` items × `M` questions) in **1 single API call** (`5×3 = 15` judgments in `278 ms`), with each item scoped individually (`items[i]`), then filters and ranks in Python. |
+| **`JudgmentRubricEvaluator`** | `google.adk.evaluation.Evaluator` | **Calibrated ADK Rubric Judge:** Drop-in replacement for ADK's `rubric_based_final_response_quality_v1` (`228 ms` in 1 call vs. `10.2s–68.3s` for `num_samples=5`), supporting **weighted criteria** and **hard-fail safety vetoes (`veto=True`)**. |
+
+---
+
+## Running the 5 Interactive Examples in `adk web`
+
+The [`examples/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/examples) directory contains **5 intuitive, relatable ADK applications** that you can test side-by-side in the ADK Web UI (`http://127.0.0.1:8008`). Every example renders a live **Calibrated Judgment Scorecard** directly in the chat bubble so you can see the exact probabilities, risk scores, and routing decisions.
 
 ### 1. Configure `examples/.env`
 
