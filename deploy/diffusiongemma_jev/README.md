@@ -14,16 +14,54 @@ Because all criteria share one canvas, latency is near-`O(1)` in the number of c
 
 | Engine | `DIFFUSIONGEMMA_ENGINE` | Notes |
 | :-- | :-- | :-- |
-| **`transformers`** (default) | `transformers` | Native `DiffusionGemmaForBlockDiffusion` encoder-prefill + bidirectional-decoder canvas pass. Requires `transformers >= 5.8.0`. |
-| **vLLM** (opt-in) | `vllm` | Scores against raw `/v1/completions`. Requires [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250), which is **still open** — hence `transformers` is the default. |
+| **`transformers`** (default) | `transformers` | [`server.py`](./server.py) runs a native `DiffusionGemmaForBlockDiffusion` encoder-prefill + bidirectional-decoder canvas pass. Requires `transformers >= 5.8.0`. Runs on CPU or GPU. No vLLM dependency. |
+| **vLLM** (opt-in, GPU-only) | `vllm` | `entrypoint.sh` runs `vllm serve` on an internal port **and serves the PR's own `structured_server.py` on `$PORT`**. `server.py` is not started at all. Requires [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250) — **not merged**. Must be built in explicitly; see below. |
+
+### Why vLLM mode does not use `server.py`
+
+PR #57250 ships `examples/features/diffusion_reads/structured_server.py`, which already
+speaks this exact Jev System One wire format **and** drives the canvas properly through
+the PR's `diffusion_seed_canvas` / `diffusion_read_only` sampling params — all questions
+answered from one read.
+
+Our earlier vLLM path in `server.py` posted plain `/v1/completions` once *per question*
+and ignored those params, which is `O(N)` in criteria — the precise opposite of the
+property that makes this model worth deploying. It has been deleted rather than ported.
+
+One wire-level difference: the PR's server listens on `POST /v1/systemone` (no
+underscore). Point agents at it with `DIFFUSIONGEMMA_SYSTEM_ONE_PATH=/v1/systemone`.
+
+### Building the vLLM engine
+
+> [!WARNING]
+> DiffusionGemma structured generation is **not in any released vLLM**. As of 2026-09-20, PR #57250 is **open**, has **merge conflicts**, and has **no formal review approvals**. The author's own note: *"I need to take a pass at cleaning up LLM comments before this is ready to land."* Treat this engine as experimental.
+
+The image does not ship vLLM by default. Opt in at build time — it is pinned to an exact fork commit, not a moving branch:
+
+```bash
+docker build \
+  --build-arg INSTALL_VLLM=true \
+  --build-arg VLLM_GIT_URL=https://github.com/mmastrac/vllm.git \
+  --build-arg VLLM_GIT_REF=ceb8eebf3eedddb964a50180f33838a9a6b13ee2 \
+  -t diffusiongemma-jev:vllm deploy/diffusiongemma_jev/
+```
+
+If you set `DIFFUSIONGEMMA_ENGINE=vllm` on an image built without that flag, `entrypoint.sh` exits with an explicit error rather than a bare `ModuleNotFoundError`.
+
+The build clones the PR source tree to `/opt/vllm-pr` rather than `pip install git+...`, because a wheel-only install discards `examples/` — and that is where `structured_server.py` lives.
+
+**Memory sizing.** Measured on an NVIDIA L4 (23034 MiB): `RedHatAI/diffusiongemma-26B-A4B-it-NVFP4` via the Marlin FP4 fallback settles at **20596 MiB**, ready in ~300 s. The entrypoint defaults to that checkpoint with `--max-model-len 16384`, `--max-logprobs 32`, `--enable-prefix-caching`, `--attention-backend TRITON_ATTN`, and `--diffusion-config '{"canvas_length": 64}'`.
+
+**When #57250 merges**, point `VLLM_GIT_URL` at upstream and bump `VLLM_GIT_REF` to the merge commit — or drop the build arg entirely once it reaches a PyPI release.
 
 ## Endpoints
 
 | Route | Purpose |
 | :-- | :-- |
-| `GET /health` | Liveness + reports active `engine` and resolved `model`. |
-| `POST /v1/system_one` | Batched judgment scoring. |
-| `POST /v1/judgment` | Alias of `/v1/system_one`. |
+| `GET /health` | Liveness + reports active `engine` and resolved `model`. (`transformers` mode) |
+| `POST /v1/system_one` | Batched judgment scoring. (`transformers` mode) |
+| `POST /v1/judgment` | Alias of `/v1/system_one`. (`transformers` mode) |
+| `POST /v1/systemone` | Batched judgment scoring served by the PR's `structured_server.py`. (`vllm` mode) |
 
 ---
 

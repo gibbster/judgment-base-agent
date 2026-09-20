@@ -4,13 +4,23 @@ Exposes POST /v1/system_one (and /v1/judgment) compatible with TypeSafe's Jev AP
 scoring Choice, Score, and Noul primitives in parallel via single-step bubble-sheet
 canvas denoising on Google's DiffusionGemma (DiffusionGemmaForBlockDiffusion).
 
-Supports two execution engines configured via DIFFUSIONGEMMA_ENGINE:
-1. "transformers" (default): Native single-step Encoder + Bidirectional Decoder canvas
-   forward pass using HuggingFace `DiffusionGemmaForBlockDiffusion(input_ids, decoder_input_ids)`.
-   - On NVIDIA L4 GPU (>=16GB VRAM): Loads `google/diffusiongemma-26B-A4B-it` (4-bit NF4 / bfloat16).
-   - On CPU / fast smoke-test: Loads `trl-internal-testing/tiny-DiffusionGemmaForBlockDiffusion`
-     (exact `DiffusionGemmaForBlockDiffusion` encoder-decoder architecture with 262k vocab).
-2. "vllm": Forwards to a local/external vLLM OpenAI `/v1/completions` server (`VLLM_INTERNAL_URL`).
+This module implements the ``transformers`` engine only: a native single-step
+Encoder + Bidirectional Decoder canvas forward pass using HuggingFace
+``DiffusionGemmaForBlockDiffusion(input_ids, decoder_input_ids)``.
+
+- On NVIDIA L4 GPU (>=16GB VRAM): loads ``google/diffusiongemma-26B-A4B-it``
+  (4-bit NF4 / bfloat16).
+- On CPU / fast smoke-test: loads
+  ``trl-internal-testing/tiny-DiffusionGemmaForBlockDiffusion`` (the exact
+  ``DiffusionGemmaForBlockDiffusion`` encoder-decoder architecture, 262k vocab).
+
+The ``vllm`` engine is deliberately NOT implemented here. When
+``DIFFUSIONGEMMA_ENGINE=vllm``, ``entrypoint.sh`` runs ``vllm serve`` plus the
+upstream PR's own ``examples/features/diffusion_reads/structured_server.py``,
+which already speaks this same Jev wire format and drives the canvas correctly
+through ``diffusion_seed_canvas`` / ``diffusion_read_only``. Re-implementing
+that here would mean one ``/v1/completions`` round trip per question — O(N)
+instead of the O(1) single canvas read that is the entire point of the model.
 """
 
 from __future__ import annotations
@@ -25,10 +35,8 @@ import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-import httpx
 from pydantic import BaseModel, Field
 
-VLLM_BASE_URL = os.environ.get("VLLM_INTERNAL_URL", "http://127.0.0.1:8001/v1")
 ENGINE_MODE = os.environ.get("DIFFUSIONGEMMA_ENGINE", "transformers").lower()
 DEFAULT_TEMPERATURE = float(os.environ.get("DIFFUSIONGEMMA_TEMPERATURE", "1.0"))
 MAX_DENOISING_STEPS = int(os.environ.get("DIFFUSIONGEMMA_DENOISING_STEPS", "1"))
@@ -38,8 +46,6 @@ def _resolve_default_model_id() -> str:
     explicit = os.environ.get("DIFFUSIONGEMMA_MODEL_ID")
     if explicit:
         return explicit
-    if ENGINE_MODE == "vllm":
-        return "nvidia/diffusiongemma-26B-A4B-it-NVFP4"
     try:
         import torch
 
@@ -93,18 +99,6 @@ def _build_prompt(state: Any, key: str, spec: Mapping[str, Any]) -> str:
     )
 
 
-def _match_logprob(candidate: str, top_logprobs: Mapping[str, float]) -> float:
-    target = candidate.strip().lower()
-    best: float | None = None
-    for tok, lp in top_logprobs.items():
-        clean = tok.strip().strip("\"'`.,:;").lower()
-        if clean == target or (len(target) >= 2 and clean.startswith(target)):
-            val = float(lp)
-            if best is None or val > best:
-                best = val
-    return best if best is not None else -12.0
-
-
 def _entropy_confidence(probs: Sequence[float]) -> float:
     n = len(probs)
     if n <= 1:
@@ -114,7 +108,6 @@ def _entropy_confidence(probs: Sequence[float]) -> float:
     return max(0.0, min(1.0, 1.0 - (h / max_h)))
 
 
-_http_client = httpx.AsyncClient(timeout=60.0)
 _hf_runtime: dict[str, Any] = {}
 
 
@@ -302,36 +295,11 @@ def _evaluate_canvas_transformers_sync(req: SystemOneRequest) -> dict[str, Any]:
     }
 
 
-async def _vllm_logprobs(prompt: str) -> tuple[dict[str, float], int, int]:
-    """Call local vLLM /v1/completions in single-step diffusion mode and extract top-20 logprobs."""
-    payload = {
-        "model": DEFAULT_MODEL_ID,
-        "prompt": prompt,
-        "max_tokens": 1,
-        "temperature": 0.0,
-        "logprobs": 20,
-        "extra_body": {
-            "max_denoising_steps": MAX_DENOISING_STEPS,
-            "entropy_threshold": 0.005,
-        },
-    }
-    resp = await _http_client.post(f"{VLLM_BASE_URL}/completions", json=payload)
-    resp.raise_for_status()
-    body = resp.json()
-    choices_list = body.get("choices") or [{}]
-    top_lps = (choices_list[0].get("logprobs", {}).get("top_logprobs") or [{}])[0]
-    usage = body.get("usage") or {}
-    in_tok = int(usage.get("prompt_tokens", 0))
-    out_tok = int(usage.get("completion_tokens", 0))
-    return top_lps, in_tok, out_tok
-
-
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    if os.environ.get("PRELOAD_MODEL_ON_STARTUP", "false").lower() == "true" and ENGINE_MODE == "transformers":
+    if os.environ.get("PRELOAD_MODEL_ON_STARTUP", "false").lower() == "true":
         await asyncio.to_thread(_get_or_load_hf_model)
     yield
-    await _http_client.aclose()
 
 
 def create_app() -> FastAPI:
@@ -350,98 +318,6 @@ def create_app() -> FastAPI:
             "max_denoising_steps": MAX_DENOISING_STEPS,
         }
 
-    async def _score_single_question_vllm(
-        state: Any,
-        key: str,
-        spec: Mapping[str, Any],
-        temperature: float,
-    ) -> tuple[str, str, dict[str, Any], int, int]:
-        prompt = _build_prompt(state, key, spec)
-        top_lps, in_tok, out_tok = await _vllm_logprobs(prompt)
-
-        q_type = str(spec.get("type", "choice")).lower()
-        temp = max(temperature, 1e-4)
-
-        if q_type == "choice":
-            crit = spec.get("criteria") or {}
-            options = (
-                list(crit.keys())
-                if isinstance(crit, Mapping)
-                else [str(x) for x in crit]
-            )
-            lps = [_match_logprob(opt, top_lps) / temp for opt in options]
-            max_lp = max(lps) if lps else 0.0
-            exps = [math.exp(x - max_lp) for x in lps]
-            total = sum(exps) or 1.0
-            probs = [e / total for e in exps]
-            prob_map = {str(o): float(p) for o, p in zip(options, probs)}
-            best = max(prob_map, key=lambda k: prob_map[k])
-            return (
-                key,
-                "choice",
-                {
-                    "choice": best,
-                    "probabilities": prob_map,
-                    "confidence": _entropy_confidence(probs),
-                },
-                in_tok,
-                out_tok,
-            )
-
-        if q_type == "score":
-            criteria_list = [str(x) for x in (spec.get("criteria") or [])]
-            indices = [str(i) for i in range(len(criteria_list))]
-            lps = [
-                max(_match_logprob(idx, top_lps), _match_logprob(lbl, top_lps)) / temp
-                for idx, lbl in zip(indices, criteria_list)
-            ]
-            max_lp = max(lps) if lps else 0.0
-            exps = [math.exp(x - max_lp) for x in lps]
-            total = sum(exps) or 1.0
-            probs = [e / total for e in exps]
-            expected = sum(float(i) * p for i, p in enumerate(probs))
-            legend = {str(i): lbl for i, lbl in enumerate(criteria_list)}
-            prob_map = {lbl: float(p) for lbl, p in zip(criteria_list, probs)}
-            return (
-                key,
-                "score",
-                {
-                    "score": expected,
-                    "legend": legend,
-                    "probabilities": prob_map,
-                    "confidence": _entropy_confidence(probs),
-                },
-                in_tok,
-                out_tok,
-            )
-
-        lp_true = (
-            max(
-                _match_logprob("true", top_lps),
-                _match_logprob("yes", top_lps),
-                _match_logprob("1", top_lps),
-            )
-            / temp
-        )
-        lp_false = (
-            max(
-                _match_logprob("false", top_lps),
-                _match_logprob("no", top_lps),
-                _match_logprob("0", top_lps),
-            )
-            / temp
-        )
-        m = max(lp_true, lp_false)
-        p_t = math.exp(lp_true - m)
-        p_f = math.exp(lp_false - m)
-        return (
-            key,
-            "noul",
-            {"noul": float(p_t / (p_t + p_f))},
-            in_tok,
-            out_tok,
-        )
-
     @app.post("/v1/system_one")
     @app.post("/v1/judgment")
     async def evaluate_system_one(req: SystemOneRequest) -> dict[str, Any]:
@@ -454,50 +330,12 @@ def create_app() -> FastAPI:
                 "usage": {"input_tokens": 0, "output_tokens": 0},
             }
 
-        # Use native 1-step DiffusionGemmaForBlockDiffusion canvas forward pass unless ENGINE_MODE=="vllm"
-        use_vllm = os.environ.get("DIFFUSIONGEMMA_ENGINE", ENGINE_MODE).lower() == "vllm"
-        if not use_vllm:
-            try:
-                return await asyncio.to_thread(_evaluate_canvas_transformers_sync, req)
-            except Exception as exc:
-                raise HTTPException(
-                    status_code=502, detail=f"DiffusionGemmaForBlockDiffusion error: {exc}"
-                ) from exc
-
         try:
-            tasks = [
-                _score_single_question_vllm(req.state, k, spec, req.temperature)
-                for k, spec in req.questions.items()
-            ]
-            results = await asyncio.gather(*tasks)
+            return await asyncio.to_thread(_evaluate_canvas_transformers_sync, req)
         except Exception as exc:
             raise HTTPException(
-                status_code=502, detail=f"vLLM DiffusionGemma error: {exc}"
+                status_code=502, detail=f"DiffusionGemmaForBlockDiffusion error: {exc}"
             ) from exc
-
-        choices: dict[str, Any] = {}
-        scores: dict[str, Any] = {}
-        nouls: dict[str, Any] = {}
-        in_tokens = 0
-        out_tokens = 0
-
-        for key, kind, payload, in_t, out_t in results:
-            in_tokens += in_t
-            out_tokens += out_t
-            if kind == "choice":
-                choices[key] = payload
-            elif kind == "score":
-                scores[key] = payload
-            else:
-                nouls[key] = payload
-
-        return {
-            "model": DEFAULT_MODEL_ID,
-            "choices": choices,
-            "scores": scores,
-            "nouls": nouls,
-            "usage": {"input_tokens": in_tokens, "output_tokens": out_tokens},
-        }
 
     return app
 

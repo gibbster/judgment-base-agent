@@ -215,12 +215,12 @@ The container ships **two engines**:
 
 | Engine | `DIFFUSIONGEMMA_ENGINE` | Notes |
 | :-- | :-- | :-- |
-| **`transformers`** (default) | `transformers` | Native single-step `DiffusionGemmaForBlockDiffusion` encoder-prefill + bidirectional-decoder canvas pass. Requires `transformers >= 5.8.0`. |
-| **vLLM** (opt-in) | `vllm` | For raw `/v1/completions` scoring. Needs [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250), which is **still open** — this is why `transformers` is the default. |
+| **`transformers`** (default) | `transformers` | Native single-step `DiffusionGemmaForBlockDiffusion` encoder-prefill + bidirectional-decoder canvas pass. Requires `transformers >= 5.8.0`. Runs on CPU or GPU. |
+| **vLLM** (opt-in, GPU-only) | `vllm` | Runs `vllm serve` plus the PR's own `structured_server.py`, which does the single-canvas read correctly and serves `POST /v1/systemone`. Needs [vLLM PR #57250](https://github.com/vllm-project/vllm/pull/57250), which is **open, conflicted, and unreviewed** — so vLLM is **not installed unless you build with `--build-arg INSTALL_VLLM=true`**. See [the deploy README](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/README.md). |
 
 All deployment artifacts live in [`deploy/diffusiongemma_jev/`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/):
-* [`Dockerfile`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/Dockerfile) & [`entrypoint.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/entrypoint.sh) — `python:3.11-slim` + torch (cu124) + `transformers` + FastAPI. Launches vLLM only when `DIFFUSIONGEMMA_ENGINE=vllm`.
-* [`server.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/server.py) — Exposes `GET /health` plus `POST /v1/system_one` and its `POST /v1/judgment` alias, returning calibrated `choices`, `scores`, `nouls`, and Shannon-entropy `confidence`.
+* [`Dockerfile`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/Dockerfile) & [`entrypoint.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/entrypoint.sh) — `python:3.11-slim` + torch (cu124) + `transformers` + FastAPI. vLLM is an opt-in build arg pinned to an exact PR commit; `entrypoint.sh` fails fast with an actionable message if `DIFFUSIONGEMMA_ENGINE=vllm` is set on an image built without it. In `vllm` mode the entrypoint execs the PR's `structured_server.py` instead of `server.py`.
+* [`server.py`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/server.py) — The `transformers` engine. Exposes `GET /health` plus `POST /v1/system_one` and its `POST /v1/judgment` alias, returning calibrated `choices`, `scores`, `nouls`, and Shannon-entropy `confidence`.
 * [`deploy_cloud_run.sh`](file:///usr/local/google/home/mbonnardot/projects/jev-base-agent/deploy/diffusiongemma_jev/deploy_cloud_run.sh) — 1-command deploy. Auto-creates the Artifact Registry repo, attempts `1x nvidia-l4`, and **falls back to 4 vCPU / 16 GiB CPU if L4 quota is unavailable**.
 
 ### 1. Deploy in 1 Command

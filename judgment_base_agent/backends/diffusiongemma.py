@@ -222,6 +222,7 @@ class DiffusionGemmaBackend:
         mode: str = "system_one",
         timeout: float = 30.0,
         transport_post: TransportPostFn | None = None,
+        system_one_path: str | None = None,
     ) -> None:
         self.base_url = (
             base_url
@@ -233,6 +234,14 @@ class DiffusionGemmaBackend:
             api_key
             or os.environ.get("DIFFUSIONGEMMA_API_KEY")
             or os.environ.get("OPENJEV_API_KEY")
+        )
+        # Our own container serves "/v1/system_one". The reference server shipped
+        # in vLLM PR #57250 serves "/v1/systemone" (no underscore). Keeping this
+        # configurable lets the same agents target either without code changes.
+        self.system_one_path = (
+            system_one_path
+            or os.environ.get("DIFFUSIONGEMMA_SYSTEM_ONE_PATH")
+            or "/v1/system_one"
         )
         self.default_model = default_model
         self.confidence_floor = confidence_floor
@@ -257,6 +266,20 @@ class DiffusionGemmaBackend:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
+
+    def _resolve_endpoint(self, path: str) -> str:
+        """Join base_url and path, tolerating base URLs that already carry it.
+
+        Accepts bases like "https://host", "https://host/v1", or a base that
+        already ends in the full path, and always yields exactly one copy.
+        """
+        normalized = "/" + path.strip("/")
+        if self.base_url.endswith(normalized):
+            return self.base_url
+        leaf = normalized.rsplit("/", 1)[-1]
+        if self.base_url.endswith("/v1") and normalized.startswith("/v1/"):
+            return f"{self.base_url}/{leaf}"
+        return f"{self.base_url}{normalized}"
 
     async def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers = self._headers()
@@ -301,13 +324,7 @@ class DiffusionGemmaBackend:
         questions: Mapping[str, Any],
         target_model: str,
     ) -> JudgmentResult:
-        endpoint = (
-            self.base_url
-            if self.base_url.endswith("/system_one")
-            else f"{self.base_url}/v1/system_one"
-            if not self.base_url.endswith("/v1")
-            else f"{self.base_url}/system_one"
-        )
+        endpoint = self._resolve_endpoint(self.system_one_path)
         serialized_questions = {
             str(k): _serialize_question(v) for k, v in questions.items()
         }

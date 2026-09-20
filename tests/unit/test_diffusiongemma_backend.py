@@ -228,43 +228,6 @@ async def test_typesafe_backend_auto_delegates_when_diffusiongemma_env_is_set(
     assert decision.model == "diffusiongemma-26B-A4B-it-NVFP4"
 
 
-@pytest.mark.asyncio
-async def test_cloud_run_container_fastapi_server_e2e(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify the Cloud Run FastAPI container (deploy/diffusiongemma_jev/server.py) works end-to-end with JudgmentAgent."""
-    import httpx
-    from deploy.diffusiongemma_jev import server as container_server
-
-    async def fake_vllm_logprobs(prompt: str) -> tuple[dict[str, float], int, int]:
-        if "QUESTION: dept" in prompt:
-            return {" billing": -0.05, " tech": -3.0}, 42, 1
-        if "QUESTION: frustration" in prompt:
-            return {"0": -3.0, "1": -1.5, "2": -0.1}, 42, 1
-        return {"true": -0.05, "false": -3.0}, 42, 1
-
-    monkeypatch.setattr(container_server, "_vllm_logprobs", fake_vllm_logprobs)
-
-    async def asgi_transport_post(url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
-        transport = httpx.ASGITransport(app=container_server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            path = "/" + url.split("/", 3)[-1]
-            resp = await client.post(path, json=json, headers=headers)
-            resp.raise_for_status()
-            return resp.json()
-
-    monkeypatch.setenv("DIFFUSIONGEMMA_ENGINE", "vllm")
-    monkeypatch.setenv("DIFFUSIONGEMMA_JEV_URL", "http://testserver")
-    backend = TypeSafeBackend()
-    backend._diffusion_transport_post = asgi_transport_post  # type: ignore[attr-defined]
-
-    agent = JudgmentAgent(
-        name="cloud_run_e2e_judgment",
-        schema=RoutingSchema,
-        backend=backend,
-    )
-    decision = await agent.judge({"ticket": "Charged twice on my invoice!"})
-    assert decision.choice("dept") == "billing"
-    assert decision.score("frustration") > 1.5
-    assert decision.noul("escalate") > 0.85
 
 
 @pytest.mark.asyncio
@@ -305,3 +268,50 @@ async def test_cloud_run_container_real_diffusiongemma_transformers_e2e(
     assert "DiffusionGemmaForBlockDiffusion" in decision.model
 
 
+
+
+@pytest.mark.asyncio
+async def test_system_one_path_is_configurable_for_the_vllm_pr_server() -> None:
+    """The vLLM PR's reference server serves /v1/systemone (no underscore).
+
+    Our default stays /v1/system_one for the existing container, but the path
+    must be overridable so agents can point at the PR server unchanged.
+    """
+    seen: list[str] = []
+
+    async def fake_post(url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        seen.append(url)
+        return {"model": "dgemma", "choices": {"dept": {"choice": "billing", "confidence": 0.9}}}
+
+    backend = DiffusionGemmaBackend(
+        base_url="http://127.0.0.1:8011",
+        system_one_path="/v1/systemone",
+        transport_post=fake_post,
+    )
+    await backend.evaluate(
+        state={"ticket": "Refund me"},
+        questions={"dept": Choice(instructions="Route", criteria={"billing": "b", "tech": "t"})},
+    )
+
+    assert seen == ["http://127.0.0.1:8011/v1/systemone"]
+
+
+@pytest.mark.asyncio
+async def test_system_one_path_defaults_to_the_existing_container_route() -> None:
+    """Omitting system_one_path must not change behaviour for the deployed container."""
+    seen: list[str] = []
+
+    async def fake_post(url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        seen.append(url)
+        return {"model": "dgemma", "choices": {"dept": {"choice": "billing", "confidence": 0.9}}}
+
+    backend = DiffusionGemmaBackend(
+        base_url="https://example.a.run.app",
+        transport_post=fake_post,
+    )
+    await backend.evaluate(
+        state={"ticket": "Refund me"},
+        questions={"dept": Choice(instructions="Route", criteria={"billing": "b", "tech": "t"})},
+    )
+
+    assert seen == ["https://example.a.run.app/v1/system_one"]
