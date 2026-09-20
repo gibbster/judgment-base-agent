@@ -39,6 +39,16 @@ dev = [
     "ruff==0.16.8",
 ]
 
+# Pin resolution to public PyPI so the lockfile is reproducible off any
+# machine. Without this, uv falls back to whatever default index is set in
+# machine-level config (for example a corporate mirror configured in
+# /etc/uv/uv.toml), and bakes that host's artifact URLs into uv.lock --
+# which then fails to install anywhere else, CI included.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
 [tool.setuptools.packages.find]
 include = ["judgment_base_agent*"]
 
