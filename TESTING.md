@@ -72,6 +72,14 @@ Open <http://127.0.0.1:8008> and pick any of the five apps.
 Leave it running in its own terminal. It exits non-zero with an explanation if
 you lack permissions, if the port is taken, or if the model never comes up.
 
+> [!NOTE]
+> **The tunnel self-heals.** IAP tears down long-lived SSH sessions after a few
+> hours (`client_loop: send disconnect: Broken pipe`), which would otherwise
+> leave `adk web` pointed at a dead port with no error on the GPU side. The
+> script detects the drop, releases the port, and reconnects — measured at
+> 6–11 s. You will see `tunnel dropped` / `tunnel restored` in that terminal.
+
+
 When it prints `==> Ready.` the endpoint is live at `http://127.0.0.1:8011`.
 
 > [!WARNING]
